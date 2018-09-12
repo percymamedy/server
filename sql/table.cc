@@ -3065,9 +3065,6 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
         (create_info->db_type && create_info->db_type != engine))
       return 1;
   }
-  // ... WITH SYSTEM VERSIONING
-  if (create_info->versioned())
-    return 1;
 
   return 0;
 }
