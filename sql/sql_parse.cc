@@ -4351,11 +4351,8 @@ mysql_execute_command(THD *thd)
     unit->set_limit(select_lex);
     MYSQL_UPDATE_START(thd->query());
     res= up_result= mysql_update(thd, all_tables,
-                                  select_lex->item_list,
+                                  select_lex,
                                   lex->value_list,
-                                  select_lex->where,
-                                  select_lex->order_list.elements,
-                                  select_lex->order_list.first,
                                   unit->select_limit_cnt,
                                   lex->ignore, &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
