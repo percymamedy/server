@@ -59,6 +59,7 @@ protected:
 public:
 
   table_map not_null_tables_cache;
+  bool is_deterministic; /* Function returns deterministic result */
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -100,24 +101,28 @@ public:
   {
     with_field= 0;
     with_param= 0;
+    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a)
    :Item_func_or_sum(thd, a), With_sum_func_cache(a)
   {
     with_param= a->with_param;
     with_field= a->with_field;
+    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b)
    :Item_func_or_sum(thd, a, b), With_sum_func_cache(a, b)
   {
     with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
+    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c)
    :Item_func_or_sum(thd, a, b, c), With_sum_func_cache(a, b, c)
   {
     with_field= a->with_field || b->with_field || c->with_field;
     with_param= a->with_param || b->with_param || c->with_param;
+    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
    :Item_func_or_sum(thd, a, b, c, d), With_sum_func_cache(a, b, c, d)
@@ -126,6 +131,7 @@ public:
                 c->with_field || d->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param;
+    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
    :Item_func_or_sum(thd, a, b, c, d, e), With_sum_func_cache(a, b, c, d, e)
@@ -134,17 +140,21 @@ public:
                 c->with_field || d->with_field || e->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param || e->with_param;
+    is_deterministic= false;
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)
   {
     set_arguments(thd, list);
+    is_deterministic= false;
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
    :Item_func_or_sum(thd, item), With_sum_func_cache(item),
     not_null_tables_cache(item->not_null_tables_cache)
-  { }
+  {
+    is_deterministic= false;
+  }
   bool fix_fields(THD *, Item **ref);
   void cleanup()
   {
@@ -352,6 +362,23 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item)
+  {
+    if (!Item_args::excl_func_dep_on_grouping_fields(sl, gb_items,
+                                                     item) &&
+      !is_group_by_item(gb_items))
+      return false;
+    return true;
+  }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    return Item_args::excl_func_dep_from_equalities(sl, item, fields);
+  }
+
   /*
     We assume the result of any function that has a TIMESTAMP argument to be
     timezone-dependent, since a TIMESTAMP value in both numeric and string
@@ -400,6 +427,45 @@ public:
   Item_func *get_item_func() { return this; }
   bool is_simplified_cond_processor(void *arg)
   { return const_item() && !val_int(); }
+  /*
+    Set that function returns deterministic result if all of its
+    arguments return deterministic result.
+  */
+  virtual void set_deterministic()
+  { is_deterministic= are_args_deterministic(); }
+  /*
+    Check if all function arguments return deterministic result.
+  */
+  bool are_args_deterministic()
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->type() == Item::FUNC_ITEM &&
+          !((Item_func *)args[i])->is_deterministic)
+        return false;
+    }
+    return true;
+  }
+  bool check_args_same_type(uint start, uint end);
+  /*
+    Check if function arguments are of the same type or are comparable.
+  */
+  bool check_func_same_type()
+  { return check_args_same_type(0, arg_count); }
+  /*
+    Set that function returns deterministic result if all
+    of its arguments are of the DATE or DATETIME type.
+  */
+  void set_deterministic_date()
+  {
+    if (!are_args_deterministic())
+      return;
+    if (args[0]->cmp_type() != TIME_RESULT ||
+        args[0]->type_handler_for_comparison()->mysql_timestamp_type()
+        == MYSQL_TIMESTAMP_TIME)
+      return;
+    is_deterministic= true;
+  }
 };
 
 
@@ -926,6 +992,18 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  void set_deterministic()
+  {
+    if (!are_args_deterministic())
+      return;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      Item_result r0= arguments()[i]->cmp_type();
+      if(!(r0 == REAL_RESULT || r0 == INT_RESULT || r0 == DECIMAL_RESULT))
+        return;
+    }
+    is_deterministic= true;
+  }
 };
 
 
@@ -1307,6 +1385,8 @@ public:
   void result_precision();
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 
@@ -1875,6 +1955,8 @@ public:
     fix_attributes(args, arg_count);
     return false;
   }
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 class Item_func_min :public Item_func_min_max
@@ -1999,6 +2081,15 @@ public:
   bool const_item() const { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coercibility>(thd, this); }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    fields->empty();
+    return false;
+  }
+  void set_deterministic()
+  { return; }
 };
 
 

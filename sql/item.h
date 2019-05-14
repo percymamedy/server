@@ -2005,6 +2005,49 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  /*
+    TRUE if the expression is an item used in the GROUP BY of sl, constant
+    or item that is functionally dependent on field(s) that are allowed to be
+    used in the SELECT sl.
+    Otherwise, store in 'item' argument item that is forbidden to be used
+    in the processing expression.
+  */
+  virtual bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                                List<Item> *gb_items,
+                                                Item **item)
+  {
+    if (const_item())
+      return true;
+    *item= this;
+    return false;
+  }
+  /*
+    TRUE if the expression depends on GROUP BY fields, constants or
+    fields that are functionally dependent on fields that are allowed to be
+    used in SELECT sl (1). Also another conditions should be met:
+    expression and its parts can be used for extraction of a new functionally
+    dependent field (2) and all functions used in this expression return
+    deterministic result.
+    Collect in 'fields' argument fields used in this expression.
+    Store in 'item' argument Item_fields that doesn't meet (1).
+    This special case can be met when sl is a subquery and forbidden
+    outer reference is used in the WHERE clause of sl.
+    If (2) is not met FALSE result is returned along with the empty
+    fields list. It is forbidden to use the same functions that are
+    forbidden to be used in the propagation of equal fields.
+  */
+  virtual bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                             Item **item,
+                                             List<Field> *fields)
+  {
+    if (const_item())
+      return true;
+    fields->empty();
+    return false;
+  }
+  /* Set subquery place in parent SELECT. */
+  virtual bool set_subquery_ctx(void *arg)
+  { return false; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd)=0;
@@ -2334,6 +2377,26 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+  /*
+    Check if item is in gb_items list (is used in GROUP BY).
+  */
+  bool is_group_by_item(List<Item> *gb_items)
+  {
+    if (gb_items->is_empty())
+      return false;
+    List_iterator<Item> it(*gb_items);
+    Item *item_arg;
+    while ((item_arg= it++))
+      if (this->eq(item_arg, 0))
+        return true;
+    return false;
+  }
+  bool is_number()
+  {
+    return (cmp_type() == INT_RESULT ||
+            cmp_type() == DECIMAL_RESULT ||
+            cmp_type() == REAL_RESULT);
+  }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -2531,6 +2594,32 @@ protected:
         return false;
     }
     return true;
+  }
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (!args[i]->excl_func_dep_on_grouping_fields(sl, gb_items, item))
+        return false;
+    }
+    return true;
+  }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    bool dep= true;
+    for (uint i= 0; i < arg_count; i++)
+    {
+      bool dep_arg=
+        args[i]->excl_func_dep_from_equalities(sl, item, fields);
+      if (!dep_arg && fields->is_empty())
+        return false;
+      dep&= dep_arg;
+    }
+    return dep;
   }
 public:
   Item_args(void)
@@ -3457,7 +3546,19 @@ public:
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
-  
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item)
+  {
+    if (field->excl_func_dep_on_grouping_fields(sl, gb_items, item))
+      return true;
+    *item= this;
+    return false;
+  }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields);
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_field>(thd, this); }
   bool is_outer_field() const
@@ -5335,6 +5436,22 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item)
+  {
+    if (!(*ref)->excl_func_dep_on_grouping_fields(sl, gb_items, item))
+    {
+      if (is_group_by_item(gb_items))
+        return true;
+      return false;
+    }
+    return true;
+  }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  { return (*ref)->excl_func_dep_from_equalities(sl, item, fields); }
 };
 
 

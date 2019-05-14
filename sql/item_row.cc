@@ -178,3 +178,14 @@ Item* Item_row::build_clone(THD *thd)
   }
   return copy;
 }
+
+
+bool Item_row::excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                                List<Item> *gb_items,
+                                                Item **item)
+{
+  if (!Item_args::excl_func_dep_on_grouping_fields(sl, gb_items, item) &&
+      !((Item *)this)->is_group_by_item(gb_items))
+    return false;
+  return true;
+}

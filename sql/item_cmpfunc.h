@@ -260,6 +260,12 @@ private:
     True for <code>X IS Y</code>, false for <code>X IS NOT Y</code> predicates.
   */
   const bool affirmative;
+  void set_deterministic()
+  {
+    if (are_args_deterministic() &&
+        args[0]->is_number())
+      is_deterministic= true;
+  }
 };
 
 
@@ -433,6 +439,8 @@ public:
       ftree= Item_func::get_mm_tree(param, cond_ptr);
     DBUG_RETURN(ftree);
   }
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 
@@ -888,6 +896,8 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) = 0;
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 
@@ -967,6 +977,12 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_strcmp>(thd, this); }
+  void set_deterministic()
+  {
+    if (args[0]->cmp_type() == STRING_RESULT &&
+        args[1]->cmp_type() == STRING_RESULT)
+      is_deterministic= true;
+  }
 };
 
 
@@ -1030,6 +1046,8 @@ public:
   table_map not_null_tables() const { return 0; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coalesce>(thd, this); }
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 
@@ -1111,6 +1129,8 @@ public:
   table_map not_null_tables() const { return 0; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ifnull>(thd, this); }
+  void set_deterministic()
+  { is_deterministic= check_func_same_type(); }
 };
 
 
@@ -1162,6 +1182,8 @@ public:
     return val_native_with_conversion_from_item(thd, find_item(), to,
                                                 type_handler());
   }
+  void set_deterministic()
+  { is_deterministic= check_args_same_type(1, arg_count); }
 };
 
 
@@ -1304,6 +1326,8 @@ public:
   { reset_first_arg_if_needed(); return this; }
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { reset_first_arg_if_needed(); return this; }
+  void set_deterministic()
+  { is_deterministic= are_args_deterministic(); }
 };
 
 
@@ -2213,6 +2237,12 @@ public:
   Item *find_item();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_case_searched>(thd, this); }
+  void set_deterministic()
+  {
+    if (check_args_same_type(0, when_count()) &&
+        check_args_same_type(when_count(), arg_count))
+      is_deterministic= true;
+  }
 };
 
 
@@ -2270,6 +2300,14 @@ public:
   } 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_case_simple>(thd, this); }
+  bool excl_func_dep_from_equalities(st_select_lex *sl, Item **item,
+                                     List<Field> *fields);
+  void set_deterministic()
+  {
+    if (check_args_same_type(0, when_count()) &&
+        check_args_same_type(when_count(), arg_count))
+      is_deterministic= true;
+  }
 };
 
 
@@ -2782,6 +2820,18 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    uint flags= Item_func_like::compare_collation()->state;
+    if (!((flags & MY_CS_NOPAD) && !(flags & MY_CS_NON1TO1)))
+    {
+      fields->empty();
+      return false;
+    }
+    return Item_args::excl_func_dep_from_equalities(sl, item, fields);
+  }
 };
 
 
@@ -3012,6 +3062,16 @@ public:
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item);
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    fields->empty();
+    return false;
+  }
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;

@@ -5224,19 +5224,6 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     }
   }
 
-  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      select->having_fix_field  &&
-      select_ref != not_found_item && !group_by_ref &&
-      !ref->alias_name_used)
-  {
-    /*
-      Report the error if fields was found only in the SELECT item list and
-      the strict mode is enabled.
-    */
-    my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
-             ref->name.str, "HAVING");
-    return NULL;
-  }
   if (select_ref != not_found_item || group_by_ref)
   {
     if (select_ref != not_found_item && !ambiguous_fields)
@@ -9070,6 +9057,38 @@ bool
 Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
+}
+
+
+bool Item_field::excl_func_dep_from_equalities(st_select_lex *sl,
+                                               Item **item,
+                                               List<Field> *fields)
+{
+  if (field->cmp_type() == STRING_RESULT &&
+      (!((field->charset()->state & MY_CS_BINSORT) &&
+      (field->charset()->state & MY_CS_NOPAD))))
+  {
+    fields->empty();
+    return false;
+  }
+  if (fields->push_back(field, sl->join->thd->mem_root))
+    return false;
+
+  bool outer_field=
+    field->table->pos_in_table_list->select_lex->select_number !=
+    sl->select_number;
+
+  bool dep= field->excl_func_dep_on_grouping_fields(sl, 0, item);
+  if (!dep)
+  {
+    if (outer_field)
+    {
+      *item= this;
+      fields->empty();
+    }
+    return false;
+  }
+  return true;
 }
 
 

@@ -274,6 +274,18 @@ public:
   Item* get_copy(THD *thd) { return 0; }
 
   bool wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
+  bool excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                        List<Item> *gb_items,
+                                        Item **item)
+  { return true; }
+  bool excl_func_dep_from_equalities(st_select_lex *sl,
+                                     Item **item,
+                                     List<Field> *fields)
+  {
+    fields->empty();
+    return false;
+  }
+  bool set_subquery_ctx(void *arg);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

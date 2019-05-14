@@ -11240,3 +11240,29 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
 
   return rc;
 }
+
+
+bool Field::excl_func_dep_on_grouping_fields(st_select_lex *sl,
+                                             List<Item> *gb_items,
+                                             Item **item)
+{
+  if (sl)
+  {
+    /* Field is used in some parent select of sl */
+    bool outer_field= table->pos_in_table_list->select_lex->select_number !=
+                      sl->select_number;
+    if (outer_field && sl->context_analysis_place != NO_MATTER)
+    {
+      st_select_lex *sel= sl;
+      while ((sel->master_unit()->outer_select()->select_number !=
+              table->pos_in_table_list->select_lex->select_number))
+        sel= sel->master_unit()->outer_select();
+      if (sel->context_analysis_place == IN_WHERE)
+        return true;
+    }
+  }
+  if (vcol_info &&
+      vcol_info->expr->excl_func_dep_on_grouping_fields(sl, gb_items, item))
+    return true;
+  return bitmap_is_set(&table->tmp_set, field_index);
+}
