@@ -1,4 +1,8 @@
 --disable_query_log
+if (`SELECT $CURSOR_PROTOCOL > 0`)
+{
+   --skip Incompatible with cursor-protocol
+}
 if (!$TEST_VERSIONING_SO)
 {
   --skip needs test_versioning plugin

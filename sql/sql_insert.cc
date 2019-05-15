@@ -1890,7 +1890,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             info->updated++;
             if (table->versioned())
             {
-              if (table->versioned(VERS_TIMESTAMP))
+              if (table->versioned_write(VERS_TIMESTAMP))
               {
                 store_record(table, record[2]);
                 if ((error= table->vers_insert_history_row()))
@@ -1964,7 +1964,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
-          if (table->versioned(VERS_TRX_ID))
+          if (table->versioned_write(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->vers_start_field()->store(0, false);
@@ -1976,7 +1976,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (likely(!error))
           {
             info->deleted++;
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned_write(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
               error= table->vers_insert_history_row();
@@ -3895,7 +3895,6 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(1);
   }
 
-  table->vers_write= table->versioned();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {
@@ -3907,7 +3906,6 @@ int select_insert::send_data(List<Item> &values)
   }
 
   error= write_record(thd, table, &info);
-  table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
   
   if (likely(!error))
