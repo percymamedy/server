@@ -3009,6 +3009,7 @@ public:
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_nest(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 

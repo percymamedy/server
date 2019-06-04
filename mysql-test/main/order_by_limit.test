@@ -1,0 +1,23 @@
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+create table t1(a int, b int);
+insert into t1 select A.a + B.a* 10, A.a + B.a* 10 from ten A, ten B,ten C;
+create table t2(a int, b int);
+insert into t2(a,b) values (1,1), (2,1);
+insert into t2 select A.a + B.a* 10, -1 from ten A, ten B;
+create table t3(a int, b int);
+insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+set optimizer_trace=1;
+
+--echo the best plan would be having an order nest on (t2,t1)
+
+explain
+select * from t1,t2,t3 where t1.a=t2.b order by t1.b;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,t2,t3,ten,one_k;

@@ -456,7 +456,8 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
 void best_access_path(JOIN *join, JOIN_TAB *s, 
                              table_map remaining_tables, uint idx, 
                              bool disable_jbuf, double record_count,
-                             POSITION *pos, POSITION *loose_scan_pos);
+                             POSITION *pos, POSITION *loose_scan_pos,
+                             int *index_used);
 void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
@@ -3073,13 +3074,14 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       rem_tables |= join->positions[i].table->table->map;
 
     POSITION curpos, dummy;
+    int index_used;
     /* Need to re-run best-access-path as we prefix_rec_count has changed */
     bool disable_jbuf= (join->thd->variables.join_cache_level == 0);
     Json_writer_temp_disable trace_semijoin_mat_scan(thd);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
       best_access_path(join, join->positions[i].table, rem_tables, i,
-                       disable_jbuf, prefix_rec_count, &curpos, &dummy);
+                       disable_jbuf, prefix_rec_count, &curpos, &dummy, &index_used);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
     }
@@ -3707,6 +3709,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         join->sjm_scan_tables |= join->best_positions[i].table->table->map;
 
       POSITION dummy;
+      int index_used;
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
       semijoin_strategy.add("semi_join_strategy","sj_materialize_scan");
@@ -3720,7 +3723,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         }
         best_access_path(join, join->best_positions[i].table, rem_tables, i, 
                          FALSE, prefix_rec_count,
-                         join->best_positions + i, &dummy);
+                         join->best_positions + i, &dummy, &index_used);
         prefix_rec_count *= join->best_positions[i].records_read;
         rem_tables &= ~join->best_positions[i].table->table->map;
       }
@@ -3749,6 +3752,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_object semijoin_strategy(thd);
       semijoin_strategy.add("semi_join_strategy","firstmatch");
       Json_writer_array semijoin_plan(thd, "join_order");
+      int index_used;
       for (idx= first; idx <= tablenr; idx++)
       {
         if (unlikely(thd->trace_started()))
@@ -3760,7 +3764,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         {
            best_access_path(join, join->best_positions[idx].table, 
                             rem_tables, idx, TRUE /* no jbuf */,
-                            record_count, join->best_positions + idx, &dummy);
+                            record_count, join->best_positions + idx, &dummy,
+                            &index_used);
         }
         record_count *= join->best_positions[idx].records_read;
         rem_tables &= ~join->best_positions[idx].table->table->map;
@@ -3786,7 +3791,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
       semijoin_strategy.add("semi_join_strategy","sj_materialize");
-      Json_writer_array semijoin_plan(thd, "join_order");      
+      Json_writer_array semijoin_plan(thd, "join_order");
+      int index_used;
       for (idx= first; idx <= tablenr; idx++)
       {
         if (unlikely(thd->trace_started()))
@@ -3799,7 +3805,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
            best_access_path(join, join->best_positions[idx].table,
                             rem_tables, idx, TRUE /* no jbuf */,
                             record_count, join->best_positions + idx,
-                            &loose_scan_pos);
+                            &loose_scan_pos, &index_used);
            if (idx==first)
            {
              join->best_positions[idx]= loose_scan_pos;
@@ -4769,6 +4775,11 @@ int setup_semijoin_loosescan(JOIN *join)
   for (i= join->const_tables ; i < join->top_join_tab_count; )
   {
     JOIN_TAB *tab=join->join_tab + i;
+    if (tab->is_sort_nest)
+    {
+      i++;
+      continue;
+    }
     switch (pos->sj_strategy) {
       case SJ_OPT_MATERIALIZE:
       case SJ_OPT_MATERIALIZE_SCAN:
@@ -4921,6 +4932,11 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
   for (i= join->const_tables ; i < join->top_join_tab_count; )
   {
     JOIN_TAB *tab=join->join_tab + i;
+    if (tab->is_sort_nest)
+    {
+      i++;
+      continue;
+    }
     switch (pos->sj_strategy) {
       case SJ_OPT_MATERIALIZE:
       case SJ_OPT_MATERIALIZE_SCAN:
@@ -5507,6 +5523,31 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       }
       join->return_tab= save_return_tab;
       sjm->materialized= TRUE;
+    }
+  }
+  /*
+    This should be the place to add the sub_select call for the
+    prefix of the join order
+  */
+
+  else if (tab->is_sort_nest)
+  {
+    enum_nested_loop_state rc;
+    JOIN *join= tab->join;
+    SORT_NEST_INFO *nest_info= join->sort_nest_info;
+
+    if (!nest_info->materialized)
+    {
+      JOIN_TAB *join_tab= join->join_tab + join->const_tables;
+      JOIN_TAB *save_return_tab= join->return_tab;
+      if ((rc= sub_select(join, join_tab, FALSE)) < 0 ||
+          (rc= sub_select(join, join_tab, TRUE)) < 0)
+      {
+        join->return_tab= save_return_tab;
+        DBUG_RETURN(rc);
+      }
+      join->return_tab= save_return_tab;
+      nest_info->materialized= TRUE;
     }
   }
 

@@ -609,6 +609,13 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
       add_str(table_name_buffer, len);
     }
+    else if (tab->is_sort_nest)
+    {
+      size_t len= my_snprintf(table_name_buffer,
+                           sizeof(table_name_buffer)-1,
+                           "<order-nest>");
+      add_str(table_name_buffer, len);
+    }
     else
     {
       TABLE_LIST *real_table= tab->table->pos_in_table_list;
@@ -633,6 +640,19 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
   table_rec.add("rows", tab->found_records)
            .add("cost", tab->read_time);
 }
+
+void add_sort_nest_tables_to_trace(JOIN *join)
+{
+  JOIN_TAB *end_tab, *tab;
+  THD *thd= join->thd;
+  SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
+  end_tab= sort_nest_info->nest_tab;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array sort_nest(thd, "sort_nest");
+  for (tab= join->join_tab + join->const_tables; tab < end_tab; tab++)
+    sort_nest.add_table_name(tab);
+}
+
 /*
   Introduce enum_query_type flags parameter, maybe also allow
   EXPLAIN also use this function.

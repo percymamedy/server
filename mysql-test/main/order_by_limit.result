@@ -1,0 +1,200 @@
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1(a int, b int);
+insert into t1 select A.a + B.a* 10, A.a + B.a* 10 from ten A, ten B,ten C;
+create table t2(a int, b int);
+insert into t2(a,b) values (1,1), (2,1);
+insert into t2 select A.a + B.a* 10, -1 from ten A, ten B;
+create table t3(a int, b int);
+insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+set optimizer_trace=1;
+the best plan would be having an order nest on (t2,t1)
+explain
+select * from t1,t2,t3 where t1.a=t2.b order by t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using join buffer (incremental, BNL join)
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
+[
+    
+    [
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t2",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 102,
+                        "cost": 2.2241,
+                        "chosen": true
+                    }
+                ]
+            },
+            "rest_of_plan": 
+            [
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t2"
+                    ],
+                    "table": "t1",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 1000,
+                                "cost": 4.1973,
+                                "chosen": true
+                            }
+                        ]
+                    },
+                    "rest_of_plan": 
+                    [
+                        
+                        {
+                            "plan_prefix": 
+                            [
+                                "t2",
+                                "t1"
+                            ],
+                            "table": "t3",
+                            "best_access_path": 
+                            {
+                                "considered_access_paths": 
+                                [
+                                    
+                                    {
+                                        "access_type": "scan",
+                                        "resulting_rows": 1000,
+                                        "cost": 33.578,
+                                        "chosen": true
+                                    }
+                                ]
+                            },
+                            "cardinality": 1.02e8,
+                            "cost_of_plan": 1.22e8
+                        },
+                        
+                        {
+                            "plan_prefix": 
+                            [
+                                "t2",
+                                "t1"
+                            ],
+                            "table": "t3",
+                            "order_by_nest": 
+                            [
+                                "t2",
+                                "t1"
+                            ],
+                            "best_access_path": 
+                            {
+                                "considered_access_paths": 
+                                [
+                                    
+                                    {
+                                        "access_type": "scan",
+                                        "resulting_rows": 1000,
+                                        "cost": 428121,
+                                        "chosen": true
+                                    }
+                                ]
+                            },
+                            "cost_of_plan": 2.1e7
+                        }
+                    ]
+                },
+                
+                {
+                    "plan_prefix": 
+                    [
+                        "t2"
+                    ],
+                    "table": "t3",
+                    "best_access_path": 
+                    {
+                        "considered_access_paths": 
+                        [
+                            
+                            {
+                                "access_type": "scan",
+                                "resulting_rows": 1000,
+                                "cost": 4.1973,
+                                "chosen": true
+                            }
+                        ]
+                    },
+                    "pruned_by_heuristic": true
+                }
+            ]
+        },
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t1",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 1000,
+                        "cost": 4.1973,
+                        "chosen": true,
+                        "use_tmp_table": true
+                    }
+                ]
+            },
+            "pruned_by_heuristic": true
+        },
+        
+        {
+            "plan_prefix": 
+            [
+            ],
+            "table": "t3",
+            "best_access_path": 
+            {
+                "considered_access_paths": 
+                [
+                    
+                    {
+                        "access_type": "scan",
+                        "resulting_rows": 1000,
+                        "cost": 4.1973,
+                        "chosen": true
+                    }
+                ]
+            },
+            "pruned_by_heuristic": true
+        }
+    ]
+]
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.order_nest'))
+[
+    
+    [
+        "t2",
+        "t1"
+    ]
+]
+drop table t1,t2,t3,ten,one_k;
