@@ -42,8 +42,14 @@
     <Condition Message="A more recent version of [ProductName] is already installed. Setup will now exit.">
       NOT NEWERVERSIONDETECTED OR Installed
     </Condition>
+
+    <CustomAction Id="symlinks" ExeCommand="cmd /c &quot;PostInstall.bat&quot;" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="check"/>
+    <CustomAction Id="CreateSymlinks" BinaryKey="wixca.dll" DllEntry="CreateSymlinks" Execute="commit" />
+
     <InstallExecuteSequence>
       <RemoveExistingProducts After="InstallFinalize"/>
+      <Custom Action="symlinks" After="CreateSymlinks" >NOT Installed</Custom>
+      <Custom Action="CreateSymlinks" After="InstallFiles">Not Installed</Custom>
     </InstallExecuteSequence>
 
  
@@ -69,21 +75,30 @@
           </Directory>
       </Directory>
     </Directory>
-    
+
     <!-- CPACK_WIX_FEATURES -->
     @CPACK_WIX_FEATURES@
-    
+
     <!-- CPACK_WIX_DIRECTORIES -->
     @CPACK_WIX_DIRECTORIES@
     
     <!--CPACK_WIX_COMPONENTS-->
     @CPACK_WIX_COMPONENTS@
-    
+
     <!--CPACK_WIX_COMPONENTS_GROUPS -->
     @CPACK_WIX_COMPONENT_GROUPS@
     
     <!--CPACK_WIX_INCLUDES -->
     @CPACK_WIX_INCLUDES@
+
+    <DirectoryRef Id="INSTALLDIR">
+    <Component Id='PostInstall.bat' Guid='*'  Win64='yes' >
+      <File Id='PostInstall.bat' KeyPath='yes' Source='PostInstall.bat'/>
+    </Component>
+    </DirectoryRef>
+    <Feature Id="PostInstall" Title="MariaDB symlinks" Level="1" AllowAdvertise="no">
+        <ComponentRef Id="PostInstall.bat" />
+    </Feature>
   </Product>
 
 </Wix>

@@ -8,3 +8,4 @@ CheckDatabaseProperties
 CheckDataDirectoryEmpty
 CheckDBInUse
 CheckServiceUpgrades
+CreateSymlinks

@@ -125,6 +125,8 @@ ELSE()
 ENDIF()
 SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/PostInstall.bat ${CMAKE_CURRENT_BINARY_DIR}/PostInstall.bat COPYONLY)
+
 IF(NOT TARGET mysql_upgrade_wizard)
   SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
 ENDIF()

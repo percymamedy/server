@@ -32,6 +32,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 #include <shellapi.h>
 #include <stdlib.h>
 #include <winservice.h>
+#include <string>
+#include <iostream>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <Shlwapi.h>
+#include "CustomAction.h"
+using namespace std;
+using namespace std::filesystem;
 
 #define ONE_MB 1048576
 UINT ExecRemoveDataDirectory(wchar_t *dir)
@@ -452,6 +461,7 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   wchar_t *servicename= NULL;
   wchar_t *datadir= NULL;
   wchar_t *bindir=NULL;
+  wofstream myfile;
 
   SC_HANDLE scm    = NULL; 
   ULONG  bufsize   = sizeof(buf); 
@@ -467,6 +477,13 @@ extern "C" UINT CheckDBInUse(MSIHANDLE hInstall)
   WcaGetProperty(L"SERVICENAME", &servicename);
   WcaGetProperty(L"DATADIR", &datadir);
   WcaGetFormattedString(L"[INSTALLDIR]bin\\", &bindir);
+
+  myfile.open("c:\\users\\rasmu\\debug2.txt");
+  myfile << L"Read bindir\n";
+  myfile << bindir;
+  myfile << L"\nEnd reading bindir\n";
+  myfile.close();
+
   WcaLog(LOGMSG_STANDARD,"SERVICENAME=%S, DATADIR=%S, bindir=%S",
     servicename, datadir, bindir);
 
@@ -1002,4 +1019,101 @@ extern "C" BOOL WINAPI DllMain(
   }
 
   return TRUE;
+}
+
+/* Symlinks */
+extern "C" UINT __stdcall CreateSymlinks(MSIHANDLE hInstall)
+{
+  wchar_t *bindir= NULL;
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  TCHAR *szValueBuf= NULL;
+  DWORD cchValueBuf= 0;
+  UINT uiStat= NULL;
+  string debug;
+  string symlinkName;
+  string appendedPath1, appendedPath2;
+  path target, symlink;
+  ofstream myfile;
+  char installDir[MAX_PATH];
+  DWORD size= MAX_VERSION_PROPERTY_SIZE;
+
+  hr = WcaInitialize(hInstall, __FUNCTION__);
+  
+  myfile.open("c:\\users\\rasmu\\debug.txt");
+  myfile << "Start\n";
+  myfile.close();
+  
+  ExitOnFailure(hr, "Failed to initialize");
+  
+  myfile.open("c:\\users\\rasmu\\debug.txt", ios_base::app);
+  myfile << "Initialize successful\n";
+  myfile.close();
+
+  //ExitOnFailure(hr, "Failed to read INSTALLDIR property.");
+  
+  // hr= WcaGetFormattedString(L"[INSTALLDIR]bin\\", &bindir);
+  //uiStat= MsiGetPropertyW(hInstall, L"INSTALLDIR", bindir, &cchValueBuf);
+  MsiGetProperty(hInstall, TEXT("INSTALLDIR"), bindir, &size);
+
+  myfile.open("c:\\users\\rasmu\\debug.txt", ios_base::app);
+  myfile << "Read bindir\n";
+  myfile << bindir;
+  myfile << "\nEnd reading bindir\n";
+  myfile.close();
+
+  uiStat=
+      MsiGetProperty(hInstall, TEXT("INSTALLDIR"), LPWSTR(L""), &cchValueBuf);
+  // cchValueBuf now contains the size of the property's string, without null
+  // termination
+  if (ERROR_MORE_DATA == uiStat)
+  {
+    ++cchValueBuf; // add 1 for null termination
+    szValueBuf= new TCHAR[cchValueBuf];
+    if (szValueBuf)
+    {
+      uiStat= MsiGetProperty(hInstall, TEXT("MyProperty"), szValueBuf,
+                             &cchValueBuf);
+    }
+  }
+
+  //  string symlink_from[]= {"mysql", "mysqlaccess", "mysqladmin"};
+  //  string symlink_to[]= {"mariadb", "mariadb-access", "mariadb-admin"};
+
+  //  cout << symlink_from[0];
+
+  //  printf("%s\n", symlink_from[0].c_str());
+  target = L"C:/Users/rasmu/target.txt";
+  
+  symlinkName= "symlink.txt";
+  appendedPath2= installDir + symlinkName;
+
+  myfile.open("c:\\users\\rasmu\\debug.txt", ios_base::app);
+  myfile << bindir;
+  myfile << "2:" + symlinkName;
+  myfile << "\nEnd\n";
+  myfile.close();
+  
+  try
+  {
+    create_symlink(target, appendedPath2);
+  }
+  catch (const filesystem_error &e)
+  {
+    myfile.open("c:\\users\\rasmu\\debug.txt", ios_base::app);
+    myfile << e.what();
+	myfile.close();
+  }
+  
+LExit:
+  myfile.open("c:\\users\\rasmu\\debug.txt", ios_base::app);
+  myfile << "LExit\n";
+  myfile << hr;
+  myfile.close();
+
+  ReleaseStr(bindir);
+
+  er= SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
+
+  return WcaFinalize(er);
 }

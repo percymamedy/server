@@ -275,6 +275,7 @@ FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
     ENDIF()
   ENDFOREACH()
   FILE(APPEND ${file} "</DirectoryRef>\n")
+
   IF(NONEXEFILES)
     GENERATE_GUID(guid)
     SET(ComponentId "C._files_${COMP_NAME}.${DirectoryRefId}")
@@ -345,7 +346,6 @@ FILE(APPEND directories.wxs "</DirectoryRef>\n")
 FILE(READ directories.wxs CPACK_WIX_DIRECTORIES)
 FILE(REMOVE directories.wxs)
 
-
 FOREACH(src ${CPACK_WIX_INCLUDE})
 SET(CPACK_WIX_INCLUDES 
 "${CPACK_WIX_INCLUDES}
@@ -353,9 +353,11 @@ SET(CPACK_WIX_INCLUDES
 )
 ENDFOREACH()
 
-
 CONFIGURE_FILE(${SRCDIR}/mysql_server.wxs.in
  ${CMAKE_CURRENT_BINARY_DIR}/mysql_server.wxs)
+SET(POST_INSTALL_SCRIPT_PATH "${CMAKE_CURRENT_BINARY_DIR}/PostInstall.bat")
+CONFIGURE_FILE(${SRCDIR}/PostInstall.bat
+ ${POST_INSTALL_SCRIPT_PATH})
 CONFIGURE_FILE(${SRCDIR}/extra.wxs.in
   ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs)
 
