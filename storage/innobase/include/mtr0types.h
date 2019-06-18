@@ -90,9 +90,6 @@ enum mlog_id_t {
 	/** Delete record list start on index page */
 	MLOG_LIST_START_DELETE = 16,
 
-	/** Copy record list end to a new created index page */
-	MLOG_LIST_END_COPY_CREATED = 17,
-
 	/** Reorganize an index page in ROW_FORMAT=REDUNDANT */
 	MLOG_PAGE_REORGANIZE = 18,
 
@@ -167,9 +164,6 @@ enum mlog_id_t {
 
 	/*** delete compact record list start on index page */
 	MLOG_COMP_LIST_START_DELETE = 44,
-
-	/** copy compact record list end to a new created index page */
-	MLOG_COMP_LIST_END_COPY_CREATED = 45,
 
 	/** reorganize an index page */
 	MLOG_COMP_PAGE_REORGANIZE = 46,

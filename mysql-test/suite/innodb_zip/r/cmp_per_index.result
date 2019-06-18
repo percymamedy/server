@@ -97,6 +97,6 @@ table_name	t
 index_name	PRIMARY
 compress_ops	0
 compress_ops_ok	0
-uncompress_ops	2
+uncompress_ops	1
 DROP TABLE t;
 SET GLOBAL innodb_cmp_per_index_enabled=default;

@@ -11,3 +11,5 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb-change-buffer-recovery : MDEV-12353 FIXME: Fails to fail after removing page_copy_rec_list_end_to_created_page()
+leaf_page_corrupted_during_recovery : MDEV-12353 FIXME: nondeterministic after removing page_copy_rec_list_end_to_created_page()

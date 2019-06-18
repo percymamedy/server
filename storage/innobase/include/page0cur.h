@@ -214,21 +214,6 @@ page_cur_insert_rec_zip(
 	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
-/*************************************************************//**
-Copies records from page to a newly created page, from a given record onward,
-including that record. Infimum and supremum records are not copied.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit(). */
-void
-page_copy_rec_list_end_to_created_page(
-/*===================================*/
-	page_t*		new_page,	/*!< in/out: index page to copy to */
-	rec_t*		rec,		/*!< in: first record to copy */
-	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr);		/*!< in: mtr */
 /***********************************************************//**
 Deletes a record at the page cursor. The cursor is moved to the
 next record after the deleted one. */
@@ -348,17 +333,6 @@ page_cur_parse_insert_rec(
 	ibool		is_short,/*!< in: TRUE if short inserts */
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	buf_block_t*	block,	/*!< in: page or NULL */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/**********************************************************//**
-Parses a log record of copying a record list end to a new created page.
-@return end of log record or NULL */
-byte*
-page_parse_copy_rec_list_to_created_page(
-/*=====================================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */

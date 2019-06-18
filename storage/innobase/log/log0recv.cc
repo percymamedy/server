@@ -1533,20 +1533,6 @@ parse_log:
 							 block, index, mtr);
 		}
 		break;
-	case MLOG_LIST_END_COPY_CREATED: case MLOG_COMP_LIST_END_COPY_CREATED:
-		ut_ad(!page || fil_page_type_is_index(page_type));
-
-		if (NULL != (ptr = mlog_parse_index(
-				     ptr, end_ptr,
-				     type == MLOG_COMP_LIST_END_COPY_CREATED,
-				     &index))) {
-			ut_a(!page
-			     || (ibool)!!page_is_comp(page)
-			     == dict_table_is_comp(index->table));
-			ptr = page_parse_copy_rec_list_to_created_page(
-				ptr, end_ptr, block, index, mtr);
-		}
-		break;
 	case MLOG_PAGE_REORGANIZE:
 	case MLOG_COMP_PAGE_REORGANIZE:
 	case MLOG_ZIP_PAGE_REORGANIZE:
@@ -3782,9 +3768,6 @@ static const char* get_mlog_string(mlog_id_t type)
 	case MLOG_LIST_START_DELETE:
 		return("MLOG_LIST_START_DELETE");
 
-	case MLOG_LIST_END_COPY_CREATED:
-		return("MLOG_LIST_END_COPY_CREATED");
-
 	case MLOG_PAGE_REORGANIZE:
 		return("MLOG_PAGE_REORGANIZE");
 
@@ -3852,9 +3835,6 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_COMP_LIST_START_DELETE:
 		return("MLOG_COMP_LIST_START_DELETE");
-
-	case MLOG_COMP_LIST_END_COPY_CREATED:
-		return("MLOG_COMP_LIST_END_COPY_CREATED");
 
 	case MLOG_COMP_PAGE_REORGANIZE:
 		return("MLOG_COMP_PAGE_REORGANIZE");
