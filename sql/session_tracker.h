@@ -33,6 +33,7 @@ enum enum_session_tracker
   CURRENT_SCHEMA_TRACKER,                        /* Current schema */
   SESSION_STATE_CHANGE_TRACKER,
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
+  USER_VARIABLES_TRACKER,
   SESSION_TRACKER_END                            /* must be the last */
 };
 
@@ -388,6 +389,30 @@ private:
 
 
 /**
+  User_variables_tracker
+
+  This is a tracker class that enables & manages the tracking of user variables.
+*/
+
+class User_variables_tracker: public State_tracker
+{
+  HASH m_changed_user_variables;
+public:
+  User_variables_tracker()
+  {
+    my_hash_init(&m_changed_user_variables, &my_charset_bin, 0, 0,
+                 sizeof(void*), 0, 0,
+                 HASH_UNIQUE | (mysqld_server_initialized ?
+                 HASH_THREAD_SPECIFIC : 0));
+  }
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+  void mark_as_changed(THD *thd, LEX_CSTRING *var);
+  void deinit() { my_hash_free(&m_changed_user_variables); }
+};
+
+
+/**
   Session_tracker
 
   This class holds an object each for all tracker classes and provides
@@ -415,6 +440,7 @@ public:
   Session_state_change_tracker state_change;
   Transaction_state_tracker transaction_info;
   Session_sysvars_tracker sysvars;
+  User_variables_tracker user_variables;
 
   Session_tracker()
   {
@@ -422,6 +448,7 @@ public:
     m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
     m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
     m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
+    m_trackers[USER_VARIABLES_TRACKER]= &user_variables;
   }
 
   void enable(THD *thd)

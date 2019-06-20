@@ -1715,6 +1715,7 @@ THD::~THD()
   /* trick to make happy memory accounting system */
 #ifndef EMBEDDED_LIBRARY
   session_tracker.sysvars.deinit();
+  session_tracker.user_variables.deinit();
 #endif //EMBEDDED_LIBRARY
 
   if (status_var.local_memory_used != 0)
