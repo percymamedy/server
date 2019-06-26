@@ -1509,6 +1509,8 @@ public:
     the optimize_cond() call in JOIN::optimize_inner() method.
   */
   bool is_orig_degenerated;
+  bool order_nest;
+  table_map order_nest_tables;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1605,6 +1607,8 @@ public:
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
     is_orig_degenerated= false;
+    order_nest= FALSE;
+    order_nest_tables= 0;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -2455,6 +2459,7 @@ double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);
+double postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len, uint idx);
 
 struct st_cond_statistic
 {

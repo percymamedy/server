@@ -651,7 +651,6 @@ add_ext_keyuses_for_splitting_field(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   @brief
     Cost of the post join operation used in specification of splittable table
 */
-
 static
 double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 {

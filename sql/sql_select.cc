@@ -8145,18 +8145,18 @@ choose_plan(JOIN *join, table_map join_tables)
   }
   trace_plan.end();
 
-  bool order_nest= FALSE;
   for (uint tablenr=0;tablenr < join->table_count;tablenr++)
   {
     POSITION *pos= &join->best_positions[tablenr];
+    join->order_nest_tables|=  pos->table->table->map;
     if (pos->ordering_achieved)
     {
-      order_nest= TRUE;
+      join->order_nest= TRUE;
       break;
     }
   }
 
-  if (order_nest)
+  if (join->order_nest && unlikely(thd->trace_started()))
   {
     Json_writer_array trace_order_nest(thd, "order_nest");
 
@@ -9517,7 +9517,7 @@ best_extension_by_limited_search(JOIN      *join,
             check_join_prefix_contains_ordering(join, s, previous_tables))
         {
           join->positions[idx].ordering_achieved= TRUE;
-          current_read_time= COST_ADD(current_read_time, current_record_count);
+          double cost= postjoin_oper_cost(thd, partial_join_cardinality, AVG_REC_LEN, idx);
           if (best_extension_by_limited_search(join,
                                                remaining_tables & ~real_table_bit,
                                                idx + 1,
@@ -9543,12 +9543,15 @@ best_extension_by_limited_search(JOIN      *join,
             join->sort_by_table !=
             join->positions[join->const_tables].table->table
             && !nest_created)
+        {
           /*
              We may have to make a temp table, note that this is only a
              heuristic since we cannot know for sure at this point.
              Hence it may be wrong.
           */
-          current_read_time= COST_ADD(current_read_time, current_record_count);
+          double cost= postjoin_oper_cost(thd, partial_join_cardinality, AVG_REC_LEN, idx);
+          current_read_time= COST_ADD(current_read_time, cost);
+        }
         if (!nest_created)
         {
           *cardinality= partial_join_cardinality;
@@ -28715,6 +28718,26 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
     return sh;
   }
   return 0;
+}
+
+double postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len, uint idx)
+{
+  double cost= 0;
+  /*
+    For only one table in the order_nest, we don't need a fill the temp table, we can
+    just read the data into the filesort buffer and read the sorted data from the buffers.
+  */
+  if (idx)
+    cost=  get_tmp_table_write_cost(thd, join_record_count,rec_len) *
+           join_record_count;   // cost to fill tmp table
+
+  cost+= get_tmp_table_lookup_cost(thd, join_record_count,rec_len) *
+         join_record_count;   // cost to perform post join operation used here
+  cost+= get_tmp_table_lookup_cost(thd, join_record_count, rec_len) +
+         (join_record_count == 0 ? 0 :
+          join_record_count * log2 (join_record_count)) *
+         SORT_INDEX_CMP_COST;             // cost to perform  sorting
+  return cost;
 }
 
 
