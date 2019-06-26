@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Compute virtual column values failed");
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
