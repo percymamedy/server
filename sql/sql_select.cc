@@ -9518,6 +9518,7 @@ best_extension_by_limited_search(JOIN      *join,
         {
           join->positions[idx].ordering_achieved= TRUE;
           double cost= postjoin_oper_cost(thd, partial_join_cardinality, AVG_REC_LEN, idx);
+          current_read_time= COST_ADD(current_read_time, cost);
           if (best_extension_by_limited_search(join,
                                                remaining_tables & ~real_table_bit,
                                                idx + 1,
@@ -10248,7 +10249,7 @@ bool JOIN::get_best_combination()
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
     DBUG_RETURN(TRUE);
-   root_range->start= join_tab;
+  root_range->start= join_tab;
   /* root_range->end will be set later */
   join_tab_ranges.empty();
 
@@ -10323,7 +10324,7 @@ bool JOIN::get_best_combination()
       j->type=JT_ALL;
       if (best_positions[tablenr].use_join_buffer &&
           tablenr != const_tables)
-	full_join= 1;
+      full_join= 1;
     }
 
     /*if (best_positions[tablenr].sj_strategy == SJ_OPT_LOOSE_SCAN)
@@ -10356,12 +10357,34 @@ bool JOIN::get_best_combination()
       sjm_nest_root= NULL;
       sjm_nest_end= NULL;
     }
+    if (cur_pos->ordering_achieved)
+    {
+      /*
+        Ok, we've entered an ORDERING nest
+        1. Put into main join order a JOIN_TAB that represents a scan
+           in the temptable.
+      */
+      JOIN_TAB *prev= j;
+      j= j+1;
+      bzero((void*)j, sizeof(JOIN_TAB));
+
+      j->join= this;
+      j->table= NULL; //temporary way to tell SJM tables from others.
+      j->ref.key = -1;
+      j->on_expr_ref= (Item**) &null_ptr;
+      j->is_order_nest= TRUE;
+      j->records_read= prev->records_read * prev->cond_selectivity;
+      j->records= (ha_rows) j->records_read;
+      j->cond_selectivity= 1.0;
+    }
   }
   root_range->end= j;
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
+    if (j->order_nest)
+      j++;
     if (j->bush_children)
       j= j->bush_children->start;
 
@@ -14153,7 +14176,6 @@ void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order)
 {
   ORDER *order;
   table_map not_const_tables= ~join->const_table_map;
-  table_map item_eq_tables;
   for (order= first_order; order; order= order->next)
   {
     table_map order_tables=order->item[0]->used_tables();
@@ -14192,7 +14214,6 @@ bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
 {
   ORDER *order;
   table_map not_const_tables= ~join->const_table_map;
-  table_map item_eq_tables;
   for (order= join->order; order; order= order->next)
   {
     table_map order_tables=order->item[0]->used_tables();

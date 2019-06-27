@@ -289,13 +289,14 @@ typedef struct st_join_table {
 
   /* TRUE <=> This join_tab is inside an SJM bush and is the last leaf tab here */
   bool          last_leaf_in_bush;
-  
+
   /*
     ptr  - this is a bush, and ptr points to description of child join_tab
            range
     NULL - this join tab has no bush children
   */
   JOIN_TAB_RANGE *bush_children;
+  JOIN_TAB_RANGE *order_nest_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
@@ -523,6 +524,12 @@ typedef struct st_join_table {
   Rowid_filter *rowid_filter;
   /* Becomes true just after the used range filter has been built / filled */
   bool is_rowid_filter_built;
+
+  /*
+    Set to true if we consider creating a nest for a prefix of the JOIN order
+    that satisfies the ordering
+  */
+  bool is_order_nest;
 
   void build_range_rowid_filter_if_needed();
 
