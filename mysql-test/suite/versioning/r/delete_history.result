@@ -56,12 +56,8 @@ select * from t for system_time all;
 a
 drop procedure truncate_sp;
 # Truncate partitioned
-create or replace table t (a int)
-with system versioning
-partition by system_time limit 1 (
-partition p0 history,
-partition p1 history,
-partition pn current);
+create or replace table t (a int) with system versioning
+partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;

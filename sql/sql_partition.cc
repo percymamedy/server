@@ -2005,7 +2005,7 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     if (part_info->column_list)
     {
       if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_expression(thd))
+        part_info->vers_fix_field_list(thd))
         goto end;
       List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
