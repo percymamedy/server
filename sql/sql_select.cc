@@ -10376,6 +10376,10 @@ bool JOIN::get_best_combination()
       j->records_read= prev->records_read * prev->cond_selectivity;
       j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
+      NEST_INFO *order_nest_info;
+      if (!(order_nest_info= new NEST_INFO()))
+        return TRUE;
+      order_nest_info->n_tables= j - (join_tab + const_tables);
     }
   }
   root_range->end= j;
@@ -10383,7 +10387,7 @@ bool JOIN::get_best_combination()
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
-    if (j->order_nest)
+    if (j->is_order_nest)
       j++;
     if (j->bush_children)
       j= j->bush_children->start;
@@ -11072,12 +11076,25 @@ make_outerjoin_info(JOIN *join)
         DBUG_RETURN(TRUE);
       tab->table->reginfo.join_tab= tab;
     }
+
+    /*
+      maybe setup order nest here, we want the sj materialization fields, so we get them
+      after the call to setup_sj_materialization_part1
+    */
+    if (tab->is_order_nest)
+    {
+      if (setup_order_nest(join, tab))
+        DBUG_RETURN(TRUE);
+      tab->table->reginfo.join_tab= tab;
+    }
   }
 
   for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
+    if (tab->is_order_nest)
+      continue;
     TABLE *table= tab->table;
     TABLE_LIST *tbl= table->pos_in_table_list;
     TABLE_LIST *embedding= tbl->embedding;
@@ -13837,6 +13854,8 @@ static void update_depend_map(JOIN *join)
        join_tab;
        join_tab= next_linear_tab(join, join_tab, WITH_BUSH_ROOTS))
   {
+    if (join_tab->is_order_nest)
+      continue;
     TABLE_REF *ref= &join_tab->ref;
     table_map depend_map=0;
     Item **item=ref->items;
@@ -14230,6 +14249,67 @@ bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
     }
   }
   return TRUE;
+}
+
+
+bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
+{
+  if (!tab->is_order_nest)
+    return FALSE;
+  THD *thd= join->thd;
+  Field_iterator_table field_iterator;
+
+  JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j;
+  NEST_INFO* order_nest_info= join->order_nest_info;
+
+  /* This needs to be added to JOIN  structure, looks the best option or we
+     can have a seperate struture NEST_INFO to hold it
+  */
+
+  for (j= start_tab; j < tab; j++)
+  {
+    TABLE *table= start_tab->table;
+    field_iterator.set_table(table);
+    for (; !field_iterator.end_of_fields(); field_iterator.next())
+    {
+      Field *field= field_iterator.field();
+      if (!bitmap_is_set(table->read_set, field->field_index))
+        continue;
+      Item *item;
+      if (!(item= field_iterator.create_item(thd)))
+        return TRUE;
+      order_nest_info->nest_table_cols.push_back(item, thd->mem_root);
+    }
+  }
+
+  /*
+    TODO also add ORDER ITEMS that are expressions, only fields are covered above
+  */
+  DBUG_ASSERT(!tab->table);
+
+  order_nest_info->tmp_table_param.init();
+  order_nest_info->tmp_table_param.bit_fields_as_long= TRUE;
+  order_nest_info->tmp_table_param.field_count= order_nest_info->nest_table_cols.elements;
+  order_nest_info->tmp_table_param.force_not_null_cols= FALSE;
+
+  const LEX_CSTRING order_nest_name= { STRING_WITH_LEN("order-nest") };
+  if (!(tab->table= create_tmp_table(thd, &order_nest_info->tmp_table_param,
+                                     order_nest_info->nest_table_cols, (ORDER*) 0,
+                                     FALSE /* distinct */,
+                                     0, /*save_sum_fields*/
+                                     thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
+                                     HA_POS_ERROR /*rows_limit */,
+                                     &order_nest_name)))
+    return TRUE; /* purecov: inspected */
+
+  //tab->tmp_table_param= &order_nest_info->tmp_table_param;
+  tab->type= JT_ALL;
+
+  /*
+    add_sort_to_table();
+  */
+
+  return false;
 }
 
 static int

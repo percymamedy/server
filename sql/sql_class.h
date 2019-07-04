@@ -6037,6 +6037,15 @@ public:
   Copy_field *copy_field; /* Needed for SJ_Materialization scan */
 };
 
+class NEST_INFO : public Sql_alloc
+{
+public:
+  TMP_TABLE_PARAM tmp_table_param;
+  List<Item> nest_table_cols;
+  TABLE *table;
+  uint n_tables;
+};
+
 
 /* Structs used when sorting */
 struct SORT_FIELD_ATTR

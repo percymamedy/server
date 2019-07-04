@@ -1518,6 +1518,7 @@ public:
   bool is_orig_degenerated;
   bool order_nest;
   table_map order_nest_tables;
+  NEST_INFO *order_nest_info;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1616,12 +1617,17 @@ public:
     is_orig_degenerated= false;
     order_nest= FALSE;
     order_nest_tables= 0;
+    order_nest_info= NULL;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }
   /* Number of tables actually joined at the top level */
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
+
+  /*uint order_nest_table_count() { return order_nest_info ? order_nest_info->n_tables : 0; }
+  JOIN_TAB* first_non_const_table() { return join_tab + const_tables; }
+  JOIN_TAB* order_nest_tab() { return first_non_const_table() + order_nest_table_count(); }*/
 
   /*
     Number of tables in the join which also includes the temporary tables
@@ -2115,6 +2121,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
 void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order);
 bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
                                          table_map previous_tables);
+bool setup_order_nest(JOIN *join, JOIN_TAB *tab);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field
