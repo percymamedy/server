@@ -92,6 +92,7 @@ static void closelog() {}
 #include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
+#include "../../mysys/mysys_priv.h"
 #ifndef RTLD_DEFAULT
 #define RTLD_DEFAULT NULL
 #endif
