@@ -688,7 +688,7 @@ static int cmp_users(const void *ia, const void *ib)
 {
   const struct user_name *a= (const struct user_name *) ia;
   const struct user_name *b= (const struct user_name *) ib;
-  int dl= a->name_len - b->name_len;
+  int dl= (int) a->name_len - (int) b->name_len;
   if (dl != 0)
     return dl;
 
@@ -1485,7 +1485,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
         }
         next_s++;
       }
-      len-= next_s - str;
+      len-= (unsigned int) (next_s - str);
       str= next_s;
       continue;
     }
