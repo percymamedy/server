@@ -10153,14 +10153,16 @@ bool JOIN::get_best_combination()
 
   if (aggr_tables > 2)
     aggr_tables= 2;
-  if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
-                                        (top_join_tab_count + aggr_tables))))
-    DBUG_RETURN(TRUE);
 
   full_join=0;
   hash_join= FALSE;
 
   fix_semijoin_strategies_for_picked_join_order(this);
+  top_join_tab_count= get_number_of_tables_at_top_level(this);
+
+  if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
+                                        (top_join_tab_count + aggr_tables))))
+    DBUG_RETURN(TRUE);
    
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
