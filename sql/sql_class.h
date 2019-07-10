@@ -6040,9 +6040,16 @@ public:
 class NEST_INFO : public Sql_alloc
 {
 public:
+  ~NEST_INFO()
+  {
+    nest_tab= NULL;
+    table= NULL;
+  }
   TMP_TABLE_PARAM tmp_table_param;
-  List<Item> nest_table_cols;
+  List<Item> nest_base_table_cols;
+  List<Item> nest_temp_table_cols;
   TABLE *table;
+  st_join_table *nest_tab;
   uint n_tables;
 };
 

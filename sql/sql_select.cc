@@ -2714,7 +2714,9 @@ int JOIN::optimize_stage2()
     Yet the current implementation of FORCE INDEX hints does not
     allow us to do it in a clean manner.
   */
-  no_jbuf_after= 1 ? table_count : make_join_orderinfo(this);
+  no_jbuf_after= 1 ? (order_nest_info ? const_tables+ order_nest_info->n_tables
+                                      : table_count)
+                   : make_join_orderinfo(this);
 
   // Don't use join buffering when we use MATCH
   select_opts_for_readinfo=
@@ -3587,7 +3589,9 @@ bool JOIN::make_aggr_tables_info()
         curr_tab->type != JT_EQ_REF) // Don't sort 1 row
     {
       // Sort either first non-const table or the last tmp table
-      JOIN_TAB *sort_tab= curr_tab;
+      JOIN_TAB *sort_tab= order_nest_info ?
+                          order_nest_info->nest_tab :
+                          curr_tab;
 
       if (add_sorting_to_table(sort_tab, order_arg))
         DBUG_RETURN(true);
@@ -7082,6 +7086,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
   join->positions[idx].use_join_buffer= FALSE;
   join->positions[idx].range_rowid_filter_info= 0;
+  join->positions[idx].ordering_achieved= FALSE;
 
   /* Move the const table as down as possible in best_ref */
   JOIN_TAB **pos=join->best_ref+idx+1;
@@ -9513,7 +9518,7 @@ best_extension_by_limited_search(JOIN      *join,
                                              nest_created, cardinality))
           DBUG_RETURN(TRUE);
 
-        if (!nest_created && !join->emb_sjm_nest && nest_allow &&
+        if (!nest_created && !join->emb_sjm_nest && nest_allow && !join->need_order_nest() &&
             check_join_prefix_contains_ordering(join, s, previous_tables))
         {
           join->positions[idx].ordering_achieved= TRUE;
@@ -10380,6 +10385,8 @@ bool JOIN::get_best_combination()
       if (!(order_nest_info= new NEST_INFO()))
         return TRUE;
       order_nest_info->n_tables= j - (join_tab + const_tables);
+      order_nest_info->nest_tab= j;
+      this->order_nest_info= order_nest_info;
     }
   }
   root_range->end= j;
@@ -12510,7 +12517,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     Don't use join buffering if we're dictated not to by no_jbuf_after
     (This is not meaningfully used currently)
   */
-  if (table_index > no_jbuf_after)
+  if (table_index+1 > no_jbuf_after)
     goto no_join_cache;
   
   /*
@@ -12702,7 +12709,7 @@ restart:
     */
     prev_tab= tab - 1;
     if (tab == join->join_tab + join->const_tables ||
-        (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab))
+        (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab) || tab->is_order_nest)
       prev_tab= NULL;
 
     switch (tab->type) {
@@ -12731,7 +12738,7 @@ restart:
     default:
       tab->used_join_cache_level= 0;
     }
-    if (!tab->bush_children)
+    if (!tab->bush_children && !tab->is_order_nest)
       idx++;
   }
 }
@@ -12874,17 +12881,20 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       Later it should be improved.
     */
 
-    if (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab)
+    if ((tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab) ||
+        tab->is_order_nest)
       prev_tab= NULL;
-    DBUG_ASSERT(tab->bush_children || tab->table == join->best_positions[i].table->table);
+    DBUG_ASSERT(tab->bush_children || tab->table == join->best_positions[i].table->table
+                || tab->is_order_nest);
 
     tab->partial_join_cardinality= join->best_positions[i].records_read *
                                    (prev_tab? prev_tab->partial_join_cardinality : 1);
-    if (!tab->bush_children)
+    if (!tab->bush_children && !tab->is_order_nest)
       i++;
   }
  
   check_join_cache_usage_for_tables(join, options, no_jbuf_after);
+  NEST_INFO *order_nest_info= join->order_nest_info;
   
   JOIN_TAB *first_tab;
   for (tab= first_tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -12911,7 +12921,8 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       end_sj_materialize.
     */
     if (!(tab->bush_root_tab && 
-          tab->bush_root_tab->bush_children->end == tab + 1))
+          tab->bush_root_tab->bush_children->end == tab + 1) &&
+        !(order_nest_info && tab+1 == order_nest_info->nest_tab))
     {
       tab->next_select=sub_select;		/* normal select */
     }
@@ -13101,7 +13112,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
         It could be that sort_by_tab==NULL, and the plan is to use filesort()
         on the first table.
       */
-      if (join->order)
+      if (join->order && !join->order_nest_info)
       {
         join->simple_order= 0;
         join->need_tmp= 1;
@@ -14263,12 +14274,14 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   NEST_INFO* order_nest_info= join->order_nest_info;
 
   /* This needs to be added to JOIN  structure, looks the best option or we
-     can have a seperate struture NEST_INFO to hold it
+     can have a seperate struture NEST_INFO to hold it.
+     Final Implementation here should just walk over the where clause and collect
+     the field for which we should have a temp table field
   */
 
   for (j= start_tab; j < tab; j++)
   {
-    TABLE *table= start_tab->table;
+    TABLE *table= j->table;
     field_iterator.set_table(table);
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
@@ -26220,6 +26233,13 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                          sizeof(table_name_buffer)-1,
                          "<subquery%d>", 
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
+    eta->table_name.copy(table_name_buffer, len, cs);
+  }
+  else if (is_order_nest)
+  {
+    size_t len= my_snprintf(table_name_buffer,
+                         sizeof(table_name_buffer)-1,
+                         "<order-nest>");
     eta->table_name.copy(table_name_buffer, len, cs);
   }
   else

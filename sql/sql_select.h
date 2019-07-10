@@ -1741,7 +1741,8 @@ public:
   JOIN_TAB *get_sort_by_join_tab()
   {
     return (need_tmp || !sort_by_table || skip_sort_order ||
-            ((group || tmp_table_param.sum_func_count) && !group_list)) ?
+            ((group || tmp_table_param.sum_func_count) && !group_list) ||
+            order_nest_info) ?
               NULL : join_tab+const_tables;
   }
   bool setup_subquery_caches();
@@ -1768,10 +1769,19 @@ public:
   bool test_if_need_tmp_table()
   {
     return ((const_tables != table_count &&
-	    ((select_distinct || !simple_order || !simple_group) ||
+	    ((select_distinct || (!simple_order && !order_nest_info) || !simple_group) ||
 	     (group_list && order) ||
              MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct));
+  }
+
+  bool need_order_nest()
+  {
+    return ((const_tables != table_count &&
+            ((select_distinct || group_list) ||
+             MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
+            (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
+            select_lex->window_specs.elements > 0 || select_lex->agg_func_used());
   }
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,

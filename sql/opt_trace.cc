@@ -606,6 +606,13 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
       add_str(table_name_buffer, len);
     }
+    else if (tab->is_order_nest)
+    {
+      size_t len= my_snprintf(table_name_buffer,
+                           sizeof(table_name_buffer)-1,
+                           "<order-nest>");
+      add_str(table_name_buffer, len);
+    }
     else
     {
       TABLE_LIST *real_table= tab->table->pos_in_table_list;
