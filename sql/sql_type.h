@@ -3221,9 +3221,9 @@ public:
 class Type_handler
 {
 protected:
-  static const Name m_version_default;
-  static const Name m_version_mysql56;
-  static const Name m_version_mariadb53;
+  static const MYSQL_PLUGIN_IMPORT Name m_version_default;
+  static const MYSQL_PLUGIN_IMPORT Name m_version_mysql56;
+  static const MYSQL_PLUGIN_IMPORT Name m_version_mariadb53;
   String *print_item_value_csstr(THD *thd, Item *item, String *str) const;
   String *print_item_value_temporal(THD *thd, Item *item, String *str,
                                      const Name &type_name, String *buf) const;
@@ -3257,8 +3257,9 @@ protected:
                                                     enum_field_types type)
                                                     const;
 public:
-  static const Type_handler *handler_by_name(const LEX_CSTRING &name);
-  static const Type_handler *handler_by_name_or_error(const LEX_CSTRING &name);
+  static const Type_handler *handler_by_name(THD *thd, const LEX_CSTRING &name);
+  static const Type_handler *handler_by_name_or_error(THD *thd,
+                                                      const LEX_CSTRING &name);
   static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
@@ -5129,9 +5130,9 @@ public:
 
 class Type_handler_longlong: public Type_handler_general_purpose_int
 {
-  static const Name m_name_longlong;
-  static const Type_limits_int m_limits_sint64;
-  static const Type_limits_int m_limits_uint64;
+  static const MYSQL_PLUGIN_IMPORT Name m_name_longlong;
+  static const MYSQL_PLUGIN_IMPORT Type_limits_int m_limits_sint64;
+  static const MYSQL_PLUGIN_IMPORT Type_limits_int m_limits_uint64;
 public:
   virtual ~Type_handler_longlong() {}
   const Name name() const { return m_name_longlong; }

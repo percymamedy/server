@@ -595,6 +595,11 @@ struct handlerton;
  struct Mysql_replication {
    int interface_version;
  };
+struct st_mariadb_data_type
+{
+  int interface_version;
+  const class Type_handler *type_handler;
+};
 struct st_mysql_value
 {
   int (*value_type)(struct st_mysql_value *);

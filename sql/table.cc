@@ -2291,12 +2291,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         if (field_data_type_info_array.count())
         {
+          const LEX_CSTRING &info= field_data_type_info_array.
+                                     element(i).type_info();
           DBUG_EXECUTE_IF("frm_data_type_info",
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_UNKNOWN_ERROR, "DBUG: [%u] name='%s' type_info='%.*s'",
             i, share->fieldnames.type_names[i],
-            (uint) field_data_type_info_array.element(i).type_info().length,
-            field_data_type_info_array.element(i).type_info().str););
+            (uint) info.length, info.str););
+
+          if (info.length)
+          {
+            const Type_handler *h= Type_handler::handler_by_name(thd, info);
+            if (h)
+              handler= h;
+          }
         }
       }
 

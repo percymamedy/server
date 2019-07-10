@@ -1,0 +1,11 @@
+--echo #
+--echo # MDEV-20016 Add MariaDB_DATA_TYPE_PLUGIN
+--echo #
+
+SET SESSION debug_dbug="+d,frm_data_type_info";
+
+CREATE TABLE t1 (a TEST_INT8);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET SESSION debug_dbug="-d,frm_data_type_info";

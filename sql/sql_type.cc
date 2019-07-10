@@ -121,8 +121,23 @@ bool Type_handler_data::init()
 
 
 const Type_handler *
-Type_handler::handler_by_name(const LEX_CSTRING &name)
+Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
 {
+  plugin_ref plugin;
+  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_DATA_TYPE_PLUGIN)))
+  {
+    /*
+      INSTALL PLUGIN is not fully supported for data type plugins yet.
+      Fow now we have only mandatory built-in plugins
+      and dynamic plugins for test purposes,
+      Should be safe to unlock the plugin immediately.
+    */
+    const Type_handler *ph= reinterpret_cast<st_mariadb_data_type*>
+                              (plugin_decl(plugin)->info)->type_handler;
+    plugin_unlock(thd, plugin);
+    return ph;
+  }
+
 #ifdef HAVE_SPATIAL
   const Type_handler *ha= type_collection_geometry.handler_by_name(name);
   if (ha)
@@ -133,9 +148,9 @@ Type_handler::handler_by_name(const LEX_CSTRING &name)
 
 
 const Type_handler *
-Type_handler::handler_by_name_or_error(const LEX_CSTRING &name)
+Type_handler::handler_by_name_or_error(THD *thd, const LEX_CSTRING &name)
 {
-  const Type_handler *h= handler_by_name(name);
+  const Type_handler *h= handler_by_name(thd, name);
   if (!h)
     my_error(ER_UNKNOWN_DATA_TYPE, MYF(0),
              ErrConvString(name.str, name.length, system_charset_info).ptr());
