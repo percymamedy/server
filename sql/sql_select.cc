@@ -14291,23 +14291,33 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         return TRUE;
-      order_nest_info->nest_table_cols.push_back(item, thd->mem_root);
+      order_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
     }
   }
 
+  uint non_order_fields= order_nest_info->nest_base_table_cols.elements;
+  ORDER *order= join->order;
+
   /*
-    TODO also add ORDER ITEMS that are expressions, only fields are covered above
+    Order by items need to be in the temp table ,we can avoid the Field items in
+    the order by list but we need to fields inside the temp table for expressions
   */
+  for (order= join->order; order; order=order->next)
+  {
+    Item *item= order->item[0];
+    order_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+  }
+
   DBUG_ASSERT(!tab->table);
 
   order_nest_info->tmp_table_param.init();
   order_nest_info->tmp_table_param.bit_fields_as_long= TRUE;
-  order_nest_info->tmp_table_param.field_count= order_nest_info->nest_table_cols.elements;
+  order_nest_info->tmp_table_param.field_count= order_nest_info->nest_base_table_cols.elements;
   order_nest_info->tmp_table_param.force_not_null_cols= FALSE;
 
   const LEX_CSTRING order_nest_name= { STRING_WITH_LEN("order-nest") };
   if (!(tab->table= create_tmp_table(thd, &order_nest_info->tmp_table_param,
-                                     order_nest_info->nest_table_cols, (ORDER*) 0,
+                                     order_nest_info->nest_base_table_cols, (ORDER*) 0,
                                      FALSE /* distinct */,
                                      0, /*save_sum_fields*/
                                      thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
@@ -14315,12 +14325,51 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
                                      &order_nest_name)))
     return TRUE; /* purecov: inspected */
 
-  //tab->tmp_table_param= &order_nest_info->tmp_table_param;
+  order_nest_info->table= tab->table;
   tab->type= JT_ALL;
 
   /*
-    add_sort_to_table();
+    The list of temp table items created here, these are needed for the substitution
+    for items that would be evaluated in POST SORT NEST context
   */
+  field_iterator.set_table(tab->table);
+  for (; !field_iterator.end_of_fields(); field_iterator.next())
+  {
+    Field *field= field_iterator.field();
+    Item *item;
+    if (!(item= new (thd->mem_root)Item_temptable_field(thd, field)))
+      return TRUE;
+    order_nest_info->nest_temp_table_cols.push_back(item, thd->mem_root);
+  }
+
+  /*
+    Here we substitute order by items with the items of the temp table
+  */
+  List_iterator_fast<Item> it(order_nest_info->nest_temp_table_cols);
+  Item *item;
+  order= join->order;
+  uint i=0;
+  while ((item= it++))
+  {
+    if (i++ < non_order_fields)
+      continue;
+    order->item[0]= item;
+    order= order->next;
+  }
+
+  /*
+    Create mapping between base table to temp table
+    Need a key-value structure
+    would like to have base_table_field ----> temp_table_item mapping
+    We can use a hash-set that we already have inthe file sql-hset.h
+  */
+
+  /*
+    Setting up the scan on the temp table
+  */
+  tab->read_first_record= join_init_read_record;
+  tab->read_record.read_record_func= rr_sequential;
+  tab[-1].next_select= end_nest_materialization;
 
   return false;
 }
