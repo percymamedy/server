@@ -193,6 +193,8 @@ static enum_nested_loop_state
 end_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
+enum_nested_loop_state
+end_nest_materialization(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 static int join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos);
 static int join_read_system(JOIN_TAB *tab);
@@ -12285,6 +12287,35 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
+
+enum_nested_loop_state
+end_nest_materialization(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
+{
+  int error;
+  THD *thd= join->thd;
+  NEST_INFO *nest_info= join->order_nest_info;
+  DBUG_ENTER("end_sj_materialize");
+  if (!end_of_records)
+  {
+    TABLE *table= nest_info->table;
+    fill_record(thd, table, table->field,
+                nest_info->nest_base_table_cols, TRUE, FALSE);
+
+    if (unlikely(thd->is_error()))
+      DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
+    {
+      /* create_myisam_from_heap will generate error if needed */
+      if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
+          create_internal_tmp_table_from_heap(thd, table,
+                                              nest_info->tmp_table_param.start_recinfo,
+                                              &nest_info->tmp_table_param.recinfo,
+                                              error, 1, NULL))
+        DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
+    }
+  }
+  DBUG_RETURN(NESTED_LOOP_OK);
+}
 
 /* 
   Check whether a join buffer can be used to join the specified table   
