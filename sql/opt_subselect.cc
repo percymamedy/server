@@ -5517,6 +5517,31 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       sjm->materialized= TRUE;
     }
   }
+  /*
+    This should be the place to add the sub_select call for the
+    prefix of the join order
+  */
+
+  else if (tab->is_order_nest)
+  {
+    enum_nested_loop_state rc;
+    JOIN *join= tab->join;
+    NEST_INFO *nest_info= join->order_nest_info;
+
+    if (!nest_info->materialized)
+    {
+      JOIN_TAB *join_tab= join->join_tab + join->const_tables;
+      JOIN_TAB *save_return_tab= join->return_tab;
+      if ((rc= sub_select(join, join_tab, FALSE)) < 0 ||
+          (rc= sub_select(join, join_tab, TRUE)) < 0)
+      {
+        join->return_tab= save_return_tab;
+        DBUG_RETURN(rc);
+      }
+      join->return_tab= save_return_tab;
+      nest_info->materialized= TRUE;
+    }
+  }
 
   DBUG_RETURN(NESTED_LOOP_OK);
 }

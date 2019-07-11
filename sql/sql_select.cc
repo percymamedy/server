@@ -14401,8 +14401,9 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   tab->read_first_record= join_init_read_record;
   tab->read_record.read_record_func= rr_sequential;
   tab[-1].next_select= end_nest_materialization;
+  order_nest_info->materialized= FALSE;
 
-  return false;
+  return FALSE;
 }
 
 static int
@@ -20085,6 +20086,10 @@ do_select(JOIN *join, Procedure *procedure)
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
+    NEST_INFO *order_nest_info= join->order_nest_info;
+    join_tab= order_nest_info ? order_nest_info->nest_tab
+                              : join_tab;
+
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())
       error= NESTED_LOOP_NO_MORE_ROWS;
     else

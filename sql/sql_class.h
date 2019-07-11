@@ -6051,6 +6051,7 @@ public:
   TABLE *table;
   st_join_table *nest_tab;
   uint n_tables;
+  bool materialized; /* TRUE <=> materialization already performed */
 };
 
 
