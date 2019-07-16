@@ -4776,6 +4776,17 @@ void substitute_base_to_nest_items(JOIN *join)
   REPLACE_NEST_FIELD_ARG arg= {join};
   join->conds= join->conds->transform(join->thd, &Item::replace_with_nest_items,
                                       (uchar *) &arg);
+
+  List_iterator<Item> it(join->fields_list);
+  Item *item, *new_item;
+  uint i=0;
+  while ((item= it++))
+  {
+    if ((new_item= item->transform(join->thd,
+                                   &Item::replace_with_nest_items,
+                                  (uchar *) &arg)) != item)
+      it.replace(new_item);
+  }
 }
 
 
