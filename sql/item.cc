@@ -6158,6 +6158,24 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
+Item *Item_field::replace_with_nest_items(THD *thd, uchar *arg)
+{
+  REPLACE_NEST_FIELD_ARG* param= (REPLACE_NEST_FIELD_ARG*)arg;
+  JOIN *join= param->join;
+  List_iterator_fast<Item> li(join->order_nest_info->nest_base_table_cols);
+  uint index= 0;
+  Item *item;
+  while((item= li++))
+  {
+    Item *field_item= item->real_item();
+    if (field->eq(((Item_field*)field_item)->field))
+      return join->order_nest_info->nest_temp_table_cols.elem(index);
+    index++;
+  }
+  return this;
+}
+
+
 void Item::init_make_send_field(Send_field *tmp_field,
                                 const Type_handler *h)
 {

@@ -310,6 +310,8 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
+void substitute_base_to_nest_items(JOIN *join);
+
 #ifndef DBUG_OFF
 
 /*
@@ -2476,6 +2478,7 @@ int JOIN::optimize_stage2()
     select_lex->mark_const_derived(zero_result_cause);
     goto setup_subq_exit;
   }
+  substitute_base_to_nest_items(this);
 
   error= -1;					/* if goto err */
 
@@ -4763,6 +4766,16 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
     retval= &join->conds;
   }
   return retval;
+}
+
+void substitute_base_to_nest_items(JOIN *join)
+{
+  NEST_INFO *order_nest_info= join->order_nest_info;
+  if (!order_nest_info)
+    return;
+  REPLACE_NEST_FIELD_ARG arg= {join};
+  join->conds= join->conds->transform(join->thd, &Item::replace_with_nest_items,
+                                      (uchar *) &arg);
 }
 
 
@@ -11283,6 +11296,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
          tab= next_depth_first_tab(join, tab))
     {
       bool is_hj;
+      if (tab->is_order_nest)
+        continue;
 
       /*
         first_inner is the X in queries like:
@@ -14303,6 +14318,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
 
   JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j;
   NEST_INFO* order_nest_info= join->order_nest_info;
+  order_nest_info->nest_tables_map= 0;
 
   /* This needs to be added to JOIN  structure, looks the best option or we
      can have a seperate struture NEST_INFO to hold it.
@@ -14314,6 +14330,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   {
     TABLE *table= j->table;
     field_iterator.set_table(table);
+    order_nest_info->nest_tables_map|= table->map;
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
       Field *field= field_iterator.field();
@@ -14356,6 +14373,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
                                      &order_nest_name)))
     return TRUE; /* purecov: inspected */
 
+  tab->table->map= order_nest_info->nest_tables_map;
   order_nest_info->table= tab->table;
   tab->type= JT_ALL;
 
@@ -14392,7 +14410,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
     Create mapping between base table to temp table
     Need a key-value structure
     would like to have base_table_field ----> temp_table_item mapping
-    We can use a hash-set that we already have inthe file sql-hset.h
+    We can use a hash-set that we already have in the file sql-hset.h
   */
 
   /*

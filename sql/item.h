@@ -445,6 +445,11 @@ typedef struct replace_equal_field_arg
   struct st_join_table *context_tab;
 } REPLACE_EQUAL_FIELD_ARG;
 
+typedef struct replace_nest_field_arg
+{
+  JOIN *join;
+} REPLACE_NEST_FIELD_ARG;
+
 class Settable_routine_parameter
 {
 public:
@@ -2109,6 +2114,8 @@ public:
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item *replace_with_nest_items(THD *thd, uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
@@ -3471,6 +3478,7 @@ public:
     return field->get_geometry_type();
   }
   bool check_index_dependence(void *arg);
+  Item *replace_with_nest_items(THD *thd, uchar *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
