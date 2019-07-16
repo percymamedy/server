@@ -512,6 +512,16 @@ show create table t1;
 --echo # 4 partitions are created: p0, p1, p2 and pn
 select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_schema.partitions where table_name = 't1' order by PARTITION_NAME;
 
+--echo #
+--echo # MDEV-20068 History partition rotation is not done under LOCK TABLES
+--echo #
+create or replace table t1 (x int) with system versioning partition by system_time limit 1;
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+unlock tables;
+
 --echo # Test cleanup
 drop database test;
 create database test;
