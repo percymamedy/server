@@ -4434,7 +4434,7 @@ JOIN::destroy()
                                          WITH_CONST_TABLES);
          tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
     {
-      if (tab->aggr)
+      if (tab->aggr || tab->is_order_nest)
       {
         free_tmp_table(thd, tab->table);
         delete tab->tmp_table_param;
@@ -4779,7 +4779,6 @@ void substitute_base_to_nest_items(JOIN *join)
 
   List_iterator<Item> it(join->fields_list);
   Item *item, *new_item;
-  uint i=0;
   while ((item= it++))
   {
     if ((new_item= item->transform(join->thd,
@@ -8176,7 +8175,7 @@ choose_plan(JOIN *join, table_map join_tables)
   }
   trace_plan.end();
 
-  for (uint tablenr=0;tablenr < join->table_count;tablenr++)
+  /*for (uint tablenr=0;tablenr < join->table_count;tablenr++)
   {
     POSITION *pos= &join->best_positions[tablenr];
     join->order_nest_tables|=  pos->table->table->map;
@@ -8198,7 +8197,7 @@ choose_plan(JOIN *join, table_map join_tables)
       if (pos->ordering_achieved)
         break;
     }
-  }
+  }*/
 
 
   /* 

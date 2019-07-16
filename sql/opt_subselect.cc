@@ -4777,6 +4777,11 @@ int setup_semijoin_loosescan(JOIN *join)
   for (i= join->const_tables ; i < join->top_join_tab_count; )
   {
     JOIN_TAB *tab=join->join_tab + i;
+    if (tab->is_order_nest)
+    {
+      i++;
+      continue;
+    }
     switch (pos->sj_strategy) {
       case SJ_OPT_MATERIALIZE:
       case SJ_OPT_MATERIALIZE_SCAN:

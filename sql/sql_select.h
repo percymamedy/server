@@ -1516,8 +1516,6 @@ public:
     the optimize_cond() call in JOIN::optimize_inner() method.
   */
   bool is_orig_degenerated;
-  bool order_nest;
-  table_map order_nest_tables;
   NEST_INFO *order_nest_info;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
@@ -1615,8 +1613,6 @@ public:
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
     is_orig_degenerated= false;
-    order_nest= FALSE;
-    order_nest_tables= 0;
     order_nest_info= NULL;
   }
 
