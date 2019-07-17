@@ -4786,6 +4786,35 @@ void substitute_base_to_nest_items(JOIN *join)
                                   (uchar *) &arg)) != item)
       it.replace(new_item);
   }
+  JOIN_TAB *end_tab= order_nest_info->nest_tab;
+  uint i, j;
+  for (i= join->const_tables + order_nest_info->n_tables, j=0;
+       i < join->top_join_tab_count; i++, j++)
+  {
+    JOIN_TAB *tab= end_tab + j;
+    if (tab->type == JT_REF || tab->type == JT_EQ_REF ||
+        tab->type == JT_REF_OR_NULL)
+    {
+      for (uint keypart= 0; keypart < tab->ref.key_parts; keypart++)
+      {
+        item= tab->ref.items[keypart]->transform(join->thd,
+                                                 &Item::replace_with_nest_items,
+                                                 (uchar *) &arg);
+        if (item != tab->ref.items[keypart])
+        {
+          tab->ref.items[keypart]= item;
+          Item *real_item= item->real_item();
+          store_key *key_copy= tab->ref.key_copy[keypart];
+          if (key_copy->type() == store_key::FIELD_STORE_KEY)
+          {
+            store_key_field *field_copy= ((store_key_field *)key_copy);
+            DBUG_ASSERT(real_item->type() == Item::FIELD_ITEM);
+            field_copy->change_source_field((Item_field *) real_item);
+          }
+        }
+      }
+    }
+  }
 }
 
 

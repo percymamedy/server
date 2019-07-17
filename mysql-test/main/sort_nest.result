@@ -34,4 +34,27 @@ a	a
 7	7
 8	8
 9	9
+alter table t1 add key (a);
+ref should be func
+explain
+select t1.b,t2.b from t1,t2 where t1.a=t2.a+1  order by t2.b limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	100	Using filesort
+1	SIMPLE	t1	ref	a	a	5	func	1	Using index condition
+select t1.b,t2.b from t1,t2 where t1.a=t2.a+1  order by t2.b limit 2;
+b	b
+1	0
+2	1
+ref should be order-nest.a
+explain
+select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	100	Using filesort
+1	SIMPLE	t1	ref	a	a	5	order-nest.a	1	
+select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
+b	b
+0	0
+1	1
 drop table t1,t2,ten,one_k;
