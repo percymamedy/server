@@ -6048,6 +6048,7 @@ public:
   uint n_tables;
   bool materialized; /* TRUE <=> materialization already performed */
   table_map nest_tables_map;
+  Item *nest_cond;
 };
 
 

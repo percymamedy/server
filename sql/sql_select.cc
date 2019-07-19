@@ -311,6 +311,10 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
 void substitute_base_to_nest_items(JOIN *join);
+void substitute_base_to_nest_items2(JOIN *join, Item *cond);
+void
+check_cond_extraction_for_nest(THD *thd, Item *cond,
+                               Pushdown_checker checker, uchar* arg);
 
 #ifndef DBUG_OFF
 
@@ -2471,6 +2475,8 @@ int JOIN::optimize_stage2()
   if (setup_semijoin_loosescan(this))
     DBUG_RETURN(1);
 
+  substitute_base_to_nest_items(this);
+
   if (make_join_select(this, select, conds))
   {
     zero_result_cause=
@@ -2478,7 +2484,6 @@ int JOIN::optimize_stage2()
     select_lex->mark_const_derived(zero_result_cause);
     goto setup_subq_exit;
   }
-  substitute_base_to_nest_items(this);
 
   error= -1;					/* if goto err */
 
@@ -4774,8 +4779,6 @@ void substitute_base_to_nest_items(JOIN *join)
   if (!order_nest_info)
     return;
   REPLACE_NEST_FIELD_ARG arg= {join};
-  join->conds= join->conds->transform(join->thd, &Item::replace_with_nest_items,
-                                      (uchar *) &arg);
 
   List_iterator<Item> it(join->fields_list);
   Item *item, *new_item;
@@ -4814,6 +4817,108 @@ void substitute_base_to_nest_items(JOIN *join)
         }
       }
     }
+  }
+  substitute_base_to_nest_items2(join, join->conds);
+}
+
+void substitute_base_to_nest_items2(JOIN *join, Item *cond)
+{
+  NEST_INFO *order_nest_info= join->order_nest_info;
+  if (!order_nest_info)
+    return;
+  THD *thd= join->thd;
+  Item *extracted_cond;
+  SELECT_LEX* sl= join->select_lex;
+
+  /*
+    check_pushable_cond would make all the condition that we wont be pushing
+    inside the sort nest, it set NO_EXTRACTION_FL for all the items that could
+    not be added to the FL
+  */
+  check_cond_extraction_for_nest(thd, cond,
+                                 &Item::pushable_cond_checker_for_nest,
+                                 (uchar *)(&order_nest_info->nest_tables_map));
+  /*
+    build_pushable_cond would create the entire condition that would be added
+    to the tables inside the nest
+  */
+  extracted_cond= sl->build_cond_for_grouping_fields(thd, cond, TRUE);
+
+  if (extracted_cond)
+  {
+    /*
+      Remove from the WHERE clause all the conditions that were added to the inner
+      tables of the sort nest
+    */
+    cond= remove_pushed_top_conjuncts(thd, cond);
+    order_nest_info->nest_cond= extracted_cond;
+    extracted_cond->update_used_tables();
+  }
+
+  REPLACE_NEST_FIELD_ARG arg= {join};
+  if (cond)
+  {
+    cond= cond->transform(join->thd, &Item::replace_with_nest_items,
+                         (uchar *) &arg);
+
+  /* call fix fields for the extracted conds and for the changed where clause */
+    cond->update_used_tables();
+  }
+}
+
+/*
+  Add a transformer to this call so that we dont have both
+  check_cond_extraction_for_nest and check_cond_extraction_for_grouping_fields
+*/
+
+void
+check_cond_extraction_for_nest(THD *thd, Item *cond,
+                               Pushdown_checker checker, uchar* arg)
+{
+  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+    return;
+  cond->clear_extraction_flag();
+  if (cond->type() == Item::COND_ITEM)
+  {
+    Item_cond_and *and_cond=
+      (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC) ?
+      ((Item_cond_and*) cond) : 0;
+
+    List<Item> *arg_list=  ((Item_cond*) cond)->argument_list();
+    List_iterator<Item> li(*arg_list);
+    uint count= 0;         // to count items not containing NO_EXTRACTION_FL
+    uint count_full= 0;    // to count items with FULL_EXTRACTION_FL
+    Item *item;
+    while ((item=li++))
+    {
+      check_cond_extraction_for_nest(thd, item, checker, arg);
+      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+      {
+        count++;
+        if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+          count_full++;
+      }
+      else if (!and_cond)
+        break;
+    }
+    if ((and_cond && count == 0) || item)
+      cond->set_extraction_flag(NO_EXTRACTION_FL);
+    if (count_full == arg_list->elements)
+    {
+      cond->set_extraction_flag(FULL_EXTRACTION_FL);
+    }
+    if (cond->get_extraction_flag() != 0)
+    {
+      li.rewind();
+      while ((item=li++))
+        item->clear_extraction_flag();
+    }
+  }
+  else
+  {
+    int fl= (cond->*checker)(arg) ?
+      FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+    cond->set_extraction_flag(fl);
   }
 }
 
