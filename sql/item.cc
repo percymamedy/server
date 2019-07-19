@@ -6162,14 +6162,18 @@ Item *Item_field::replace_with_nest_items(THD *thd, uchar *arg)
 {
   REPLACE_NEST_FIELD_ARG* param= (REPLACE_NEST_FIELD_ARG*)arg;
   JOIN *join= param->join;
-  List_iterator_fast<Item> li(join->order_nest_info->nest_base_table_cols);
+  NEST_INFO *order_nest_info= join->order_nest_info;
+  if (!(used_tables() & order_nest_info->nest_tables_map))
+    return this;
+
+  List_iterator_fast<Item> li(order_nest_info->nest_base_table_cols);
   uint index= 0;
   Item *item;
   while((item= li++))
   {
     Item *field_item= item->real_item();
     if (field->eq(((Item_field*)field_item)->field))
-      return join->order_nest_info->nest_temp_table_cols.elem(index);
+      return order_nest_info->nest_temp_table_cols.elem(index);
     index++;
   }
   return this;
@@ -9084,6 +9088,12 @@ bool Item_field::excl_dep_on_table(table_map tab_map)
 }
 
 
+bool Item_field::excl_dep_on_nest(table_map tab_map)
+{
+  return !(used_tables() & ~tab_map);
+}
+
+
 bool
 Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
@@ -9104,6 +9114,17 @@ bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
     return item_equal->used_tables() & tab_map;
   }
   return (*ref)->excl_dep_on_table(tab_map);
+}
+
+
+bool Item_direct_view_ref::excl_dep_on_nest(table_map tab_map)
+{
+  table_map used= used_tables();
+  if (used & OUTER_REF_TABLE_BIT)
+    return false;
+  if (!(used & ~tab_map))
+    return true;
+  return (*ref)->excl_dep_on_nest(tab_map);
 }
 
 

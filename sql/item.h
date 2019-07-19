@@ -1892,6 +1892,12 @@ public:
     Not to be used for AND/OR formulas.
   */
   virtual bool excl_dep_on_table(table_map tab_map) { return false; }
+
+  /*
+    TRUE if the expression depends only on the table indicated by tab_map
+    Not to be used for AND/OR formulas.
+  */
+  virtual bool excl_dep_on_nest(table_map tab_map) { return false; }
   /*
     TRUE if the expression depends only on grouping fields of sel
     or can be converted to such an expression using equalities.
@@ -2323,6 +2329,10 @@ public:
   {
     return excl_dep_on_table(*((table_map *)arg));
   }
+  bool pushable_cond_checker_for_nest(uchar *arg)
+  {
+    return excl_dep_on_nest(*((table_map *)arg));
+  }
   bool pushable_cond_checker_for_subquery(uchar *arg)
   {
     return excl_dep_on_in_subq_left_part((Item_in_subselect *)arg);
@@ -2514,6 +2524,17 @@ protected:
       if (args[i]->const_item())
         continue;
       if (!args[i]->excl_dep_on_table(tab_map))
+        return false;
+    }
+    return true;
+  }
+  bool excl_dep_on_nest(table_map tab_map)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->const_item())
+        continue;
+      if (!args[i]->excl_dep_on_nest(tab_map))
         return false;
     }
     return true;
@@ -3458,6 +3479,7 @@ public:
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_nest(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
   bool cleanup_excluding_fields_processor(void *arg)
@@ -5314,6 +5336,15 @@ public:
       return false;
     return (used == tab_map) || (*ref)->excl_dep_on_table(tab_map);
   }
+
+  bool excl_dep_on_nest(table_map tab_map)
+  {
+    table_map used= used_tables();
+    if (used & OUTER_REF_TABLE_BIT)
+      return false;
+    return (!(used & ~tab_map) || (*ref)->excl_dep_on_nest(tab_map));
+  }
+
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return (*ref)->excl_dep_on_grouping_fields(sel); }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
@@ -5639,6 +5670,7 @@ public:
     return 0;
   }
   bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_nest(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);

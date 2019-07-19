@@ -140,6 +140,11 @@ public:
     return Item_args::excl_dep_on_table(tab_map);
   }
 
+  bool excl_dep_on_nest(table_map tab_map)
+  {
+    return Item_args::excl_dep_on_nest(tab_map);
+  }
+
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   {
     return Item_args::excl_dep_on_grouping_fields(sel);

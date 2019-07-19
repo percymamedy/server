@@ -340,6 +340,14 @@ public:
            Item_args::excl_dep_on_table(tab_map);
   }
 
+  bool excl_dep_on_nest(table_map tab_map)
+  {
+    if (used_tables() & OUTER_REF_TABLE_BIT)
+      return false;
+    return !(used_tables() & ~tab_map) ||
+           Item_args::excl_dep_on_nest(tab_map);
+  }
+
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   {
     if (has_rand_bit() || with_subquery())
