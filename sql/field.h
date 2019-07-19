@@ -634,6 +634,43 @@ public:
   inline void print(String*);
 };
 
+class Binlog_type_info
+{
+public:
+   enum binlog_signess_t
+   {
+     SIGNED,
+     UNSIGNED,
+     SIGNESS_NOT_RELEVANT // for non-numeric types
+   };
+   uchar m_type_code;
+   uint16 m_metadata;
+   uint8 m_metadata_size;
+   binlog_signess_t m_signess;
+   CHARSET_INFO *m_cs; // NULL if not relevant
+   TYPELIB *m_enum_typelib; // NULL if not relevant
+   TYPELIB *m_set_typelib; // NULL if not relevant
+   uchar m_geom_type; // Non-geometry fields can return 0 (GEOM_GEOMETRY)
+   Binlog_type_info(uchar type_code,
+                    uint16 metadata,
+                    uint8 metadata_size,
+                    binlog_signess_t signess,
+                    CHARSET_INFO *cs,
+                    TYPELIB *enum_typelib,
+                    TYPELIB *set_typelib,
+                    uchar geom_type)
+    :m_type_code(type_code),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_signess(signess),
+     m_cs(cs),
+     m_enum_typelib(enum_typelib),
+     m_set_typelib(set_typelib),
+     m_geom_type(geom_type)
+   { };
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
+};
 class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
@@ -1124,6 +1161,19 @@ public:
       real_type() instead of type() for all column types.
     */
     return type();
+  }
+  Binlog_type_info *binlog_type_info_var;
+  virtual Binlog_type_info *binlog_type_info()
+  {
+    if (binlog_type_info_var == NULL)
+    {
+      DBUG_ASSERT(table);
+      binlog_type_info_var= new (&table->mem_root)Binlog_type_info(type(),
+              0, 0, Binlog_type_info::SIGNESS_NOT_RELEVANT, NULL,
+              NULL, NULL, GEOM_GEOMETRY);
+      return binlog_type_info_var;
+    }
+    return binlog_type_info_var;
   }
   virtual en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
   {
@@ -2212,6 +2262,7 @@ public:
   uint is_equal(Create_field *new_field);
   virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -2613,6 +2664,7 @@ public:
     */
     return 0x1000000ULL;
   }
+  Binlog_type_info * binlog_type_info();
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -2678,6 +2730,7 @@ public:
     */
     return 0x20000000000000ULL;
   }
+  Binlog_type_info * binlog_type_info();
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3068,6 +3121,7 @@ public:
   }
   bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -3395,6 +3449,7 @@ public:
   int reset();
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -3564,6 +3619,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
   uint size_of() const { return sizeof(*this); }
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -3702,6 +3758,7 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
   void print_key_value(String *out, uint32 length);
+  Binlog_type_info * binlog_type_info();
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3819,6 +3876,7 @@ public:
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
   void print_key_value(String *out, uint32 length);
+  Binlog_type_info * binlog_type_info();
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -3869,6 +3927,7 @@ private:
   int key_cmp(const uchar *str, uint length)
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -4168,6 +4227,7 @@ public:
   uint32 character_octet_length() const;
   uint is_equal(Create_field *new_field);
   void print_key_value(String *out, uint32 length);
+  Binlog_type_info * binlog_type_info();
 
   friend void TABLE::remember_blob_values(String *blob_storage);
   friend void TABLE::restore_blob_values(String *blob_storage);
@@ -4221,6 +4281,7 @@ private:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit)
   { DBUG_ASSERT(0); return 0; }
+  Binlog_type_info * binlog_type_info();
 };
 
 
@@ -4414,6 +4475,7 @@ public:
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
                           bool is_eq_func) const;
+  Binlog_type_info * binlog_type_info();
 private:
   int save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
@@ -4621,6 +4683,7 @@ public:
   {
     val_int_as_str(out, 1);
   }
+  Binlog_type_info * binlog_type_info();
 
 private:
   virtual size_t do_last_null_byte() const;

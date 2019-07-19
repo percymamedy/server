@@ -4514,6 +4514,12 @@ public:
     Metadata_fields organizes m_optional_metadata into a structured format which
     is easy to access.
   */
+  // Values for binlog_row_metadata sysvar
+  enum enum_binlog_row_metadata
+  {
+    BINLOG_ROW_METADATA_MINIMAL= 0,
+    BINLOG_ROW_METADATA_FULL= 1
+  };
   struct Optional_metadata_fields
   {
     typedef std::pair<unsigned int, unsigned int> uint_pair;
@@ -4690,7 +4696,7 @@ private:
   bool init_primary_key_field();
 #endif
 
-#ifndef MYSQL_SERVER
+#ifdef MYSQL_CLIENT
   class Charset_iterator;
   class Default_charset_iterator;
   class Column_charset_iterator;

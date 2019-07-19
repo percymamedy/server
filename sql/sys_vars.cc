@@ -6174,7 +6174,7 @@ static Sys_var_enum Sys_binlog_row_metadata(
        "FULL causes all metadata to be logged; MINIMAL means that only "
        "metadata actually required by slave is logged. Default: MINIMAL.",
        GLOBAL_VAR(binlog_row_metadata), CMD_LINE(REQUIRED_ARG),
-       binlog_row_metadata_names, DEFAULT(BINLOG_ROW_METADATA_MINIMAL),
+       binlog_row_metadata_names, DEFAULT(Table_map_log_event::BINLOG_ROW_METADATA_MINIMAL),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
        ON_UPDATE(NULL));
 

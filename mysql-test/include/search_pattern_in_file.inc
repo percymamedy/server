@@ -77,7 +77,7 @@ perl;
         close(FILE);
         $content.= $file_content;
     }
-    my @matches=($content =~ m/$search_pattern/gs);
+    my @matches=($content =~ /$search_pattern/gm);
     my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 

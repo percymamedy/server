@@ -1733,7 +1733,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   unireg_check(unireg_check_arg), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
-  default_value(0)
+  default_value(0), binlog_type_info_var(NULL)
 {
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
@@ -3456,6 +3456,14 @@ int Field_new_decimal::save_field_metadata(uchar *metadata_ptr)
   return 2;
 }
 
+Binlog_type_info * Field_new_decimal::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= precision + (decimals() << 8);
+  this->binlog_type_info_var->m_metadata_size= 2;
+  return this->binlog_type_info_var;
+}
+
 
 /**
    Returns the number of bytes field uses in row-based replication 
@@ -4627,6 +4635,14 @@ int Field_float::save_field_metadata(uchar *metadata_ptr)
   return 1;
 }
 
+Binlog_type_info * Field_float::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= pack_length();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  return this->binlog_type_info_var;
+}
+
 
 void Field_float::sql_type(String &res) const
 {
@@ -4936,6 +4952,14 @@ int Field_double::save_field_metadata(uchar *metadata_ptr)
 {
   *metadata_ptr= pack_length();
   return 1;
+}
+
+Binlog_type_info * Field_double::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= pack_length();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  return this->binlog_type_info_var;
 }
 
 
@@ -5583,6 +5607,15 @@ bool Field_timestampf::val_native(Native *to)
   return Field::val_native(to);
 }
 
+Binlog_type_info * Field_timestampf::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= decimals();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  this->binlog_type_info_var->m_type_code= MYSQL_TYPE_TIMESTAMP2;
+  return this->binlog_type_info_var;
+}
+
 
 /*************************************************************/
 uint Field_temporal::is_equal(Create_field *new_field)
@@ -6193,6 +6226,14 @@ bool Field_timef::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   longlong tmp= my_time_packed_from_binary(ptr, dec);
   TIME_from_longlong_time_packed(ltime, tmp);
   return false;
+}
+Binlog_type_info * Field_timef::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= decimals();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  this->binlog_type_info_var->m_type_code= MYSQL_TYPE_TIME2;
+  return this->binlog_type_info_var;
 }
 
 /****************************************************************************
@@ -6905,6 +6946,14 @@ bool Field_datetimef::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
   TIME_from_longlong_datetime_packed(ltime, tmp);
   return validate_MMDD(tmp, ltime->month, ltime->day, fuzzydate);
 }
+Binlog_type_info * Field_datetimef::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= decimals();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  this->binlog_type_info_var->m_type_code= MYSQL_TYPE_DATETIME2;
+  return this->binlog_type_info_var;
+}
 
 /****************************************************************************
 ** string type
@@ -7480,6 +7529,20 @@ int Field_string::save_field_metadata(uchar *metadata_ptr)
   return 2;
 }
 
+Binlog_type_info * Field_string::binlog_type_info()
+{
+  char a[3];
+  DBUG_ASSERT(field_length < 1024);
+  DBUG_ASSERT((real_type() & 0xF0) == 0xF0);
+  DBUG_PRINT("debug", ("field_length: %u, real_type: %u",
+                     field_length, real_type()));
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= (real_type() ^ ((field_length & 0x300) >> 4)) +
+                                                        (((uint)(field_length & 0xFF)) << 8);
+  this->binlog_type_info_var->m_metadata_size= 2;
+  return this->binlog_type_info_var;
+}
+
 
 uint Field_string::packed_col_length(const uchar *data_ptr, uint length)
 {
@@ -7569,6 +7632,13 @@ int Field_varstring::save_field_metadata(uchar *metadata_ptr)
   DBUG_ASSERT(field_length <= 65535);
   int2store((char*)metadata_ptr, field_length);
   return 2;
+}
+Binlog_type_info * Field_varstring::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= field_length;
+  this->binlog_type_info_var->m_metadata_size= 2;
+  return this->binlog_type_info_var;
 }
 
 int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
@@ -8189,6 +8259,11 @@ int Field_varstring_compressed::cmp_max(const uchar *a_ptr, const uchar *b_ptr,
 
   return sortcmp(&a, &b, field_charset);
 }
+Binlog_type_info * Field_varstring_compressed::binlog_type_info()
+{
+  Field_varstring::binlog_type_info()->m_type_code= MYSQL_TYPE_VARCHAR_COMPRESSED;
+  return binlog_type_info_var;
+}
 
 
 /****************************************************************************
@@ -8571,6 +8646,13 @@ int Field_blob::save_field_metadata(uchar *metadata_ptr)
   DBUG_PRINT("debug", ("metadata: %u (pack_length_no_ptr)", *metadata_ptr));
   DBUG_RETURN(1);
 }
+Binlog_type_info * Field_blob::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= pack_length_no_ptr();
+  this->binlog_type_info_var->m_metadata_size= 1;
+  return this->binlog_type_info_var;
+}
 
 
 uint32 Field_blob::sort_length() const
@@ -8837,6 +8919,12 @@ longlong Field_blob_compressed::val_int(void)
   val_str(&buf, &buf);
   return Converter_strntoll_with_warn(thd, Warn_filter(thd), field_charset,
                                       buf.ptr(), buf.length()).result();
+}
+
+Binlog_type_info * Field_blob_compressed::binlog_type_info()
+{
+  Field_blob::binlog_type_info()->m_type_code= MYSQL_TYPE_BLOB_COMPRESSED;
+  return binlog_type_info_var;
 }
 
 
@@ -9234,6 +9322,13 @@ int Field_enum::save_field_metadata(uchar *metadata_ptr)
   *metadata_ptr= real_type();
   *(metadata_ptr + 1)= pack_length();
   return 2;
+}
+Binlog_type_info * Field_enum::binlog_type_info()
+{
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= real_type() + (pack_length() << 8);
+  this->binlog_type_info_var->m_metadata_size= 2;
+  return this->binlog_type_info_var;
 }
 
 
@@ -9982,6 +10077,20 @@ int Field_bit::save_field_metadata(uchar *metadata_ptr)
   metadata_ptr[0]= field_length % 8;
   metadata_ptr[1]= field_length / 8;
   DBUG_RETURN(2);
+}
+Binlog_type_info * Field_bit::binlog_type_info()
+{
+  DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",
+                     bit_len, bytes_in_rec));
+  /*
+    Since this class and Field_bit_as_char have different ideas of
+    what should be stored here, we compute the values of the metadata
+    explicitly using the field_length.
+  */
+  Field::binlog_type_info();
+  this->binlog_type_info_var->m_metadata= field_length % 8 + ((field_length / 8) << 8);
+  this->binlog_type_info_var->m_metadata_size= 2;
+  return this->binlog_type_info_var;
 }
 
 

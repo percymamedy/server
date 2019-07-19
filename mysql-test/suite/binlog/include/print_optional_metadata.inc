@@ -16,14 +16,15 @@ if ($stop_position)
 --exec $MYSQL_BINLOG -F --print-table-metadata $_stop_position_opt $binlog_file > $output_file
 
 
---let $grep_pattern= # (?:Columns\(| {8})
---let $grep_file= $output_file
---source include/grep_pattern.inc
+--let SEARCH_PATTERN= # (?:Columns\(| {8}).*
+--let SEARCH_FILE= $output_file
+--let SEARCH_OUTPUT=matches
+--source include/search_pattern_in_file.inc
 
 if ($print_primary_key)
 {
-  --let $grep_pattern= # Primary Key
-  --source include/grep_pattern.inc
+  --let SEARCH_PATTERN= # Primary Key
+  --source include/search_pattern_in_file.inc
 }
 --remove_file $output_file
 --let $stop_position=

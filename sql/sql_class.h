@@ -137,11 +137,6 @@ enum enum_binlog_row_image {
   /** All columns in both before and after image. */
   BINLOG_ROW_IMAGE_FULL= 2
 };
-// Values for binlog_row_metadata sysvar
-enum enum_binlog_row_metadata {
-  BINLOG_ROW_METADATA_MINIMAL= 0,
-  BINLOG_ROW_METADATA_FULL= 1
-};
 
 
 /* Bits for different SQL modes modes (including ANSI mode) */

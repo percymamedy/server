@@ -418,7 +418,7 @@ Field_new_decimal::rpl_conv_type_from(const Conv_source &source,
                                       const Relay_log_info *rli,
                                       const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (Field_new_decimal::binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   if (source.type_handler() == &type_handler_olddecimal ||
       source.type_handler() == &type_handler_newdecimal ||
@@ -443,7 +443,7 @@ Field_real::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
                                const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   if (source.type_handler() == &type_handler_olddecimal ||
       source.type_handler() == &type_handler_newdecimal)
@@ -466,7 +466,7 @@ Field_int::rpl_conv_type_from(const Conv_source &source,
                               const Relay_log_info *rli,
                               const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   /*
     The length comparison check will do the correct job of comparing
@@ -533,9 +533,9 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
   bool same_type;
   if (source.real_field_type() == MYSQL_TYPE_VARCHAR_COMPRESSED ||
       source.real_field_type() == MYSQL_TYPE_BLOB_COMPRESSED ||
-      binlog_type() == MYSQL_TYPE_VARCHAR_COMPRESSED ||
-      binlog_type() == MYSQL_TYPE_BLOB_COMPRESSED)
-    same_type= binlog_type() == source.real_field_type();
+      binlog_type_info()->m_type_code == MYSQL_TYPE_VARCHAR_COMPRESSED ||
+      binlog_type_info()->m_type_code == MYSQL_TYPE_BLOB_COMPRESSED)
+    same_type= binlog_type_info()->m_type_code == source.real_field_type();
   else
     same_type= type_handler() == source.type_handler();
 
@@ -592,7 +592,7 @@ Field_time::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
                                const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   // 'MySQL56 TIME(N)' -> 'MariaDB-5.3 TIME(N)' is non-lossy
   if (decimals() == source.metadata() &&
@@ -624,7 +624,7 @@ Field_timestamp::rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   // 'MySQL56 TIMESTAMP(N)' -> MariaDB-5.3 TIMESTAMP(N)' is non-lossy
   if (source.metadata() == decimals() &&
@@ -639,7 +639,7 @@ Field_timestampf::rpl_conv_type_from(const Conv_source &source,
                                      const Relay_log_info *rli,
                                      const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   /*
     See comment in Field_datetimef::rpl_conv_type_from()
@@ -657,7 +657,7 @@ Field_datetime::rpl_conv_type_from(const Conv_source &source,
                                    const Relay_log_info *rli,
                                    const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   // 'MySQL56 DATETIME(N)' -> MariaDB-5.3 DATETIME(N) is non-lossy
   if (source.metadata() == decimals() &&
@@ -674,7 +674,7 @@ Field_datetimef::rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   /*
     'MariaDB-5.3 DATETIME(N)' does not provide information about fractional
@@ -698,7 +698,7 @@ Field_date::rpl_conv_type_from(const Conv_source &source,
                                const Conv_param &param) const
 {
   // old DATE
-  return binlog_type() == source.real_field_type() ?
+  return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
          CONV_TYPE_IMPOSSIBLE;
 }
@@ -709,7 +709,7 @@ Field_bit::rpl_conv_type_from(const Conv_source &source,
                               const Relay_log_info *rli,
                               const Conv_param &param) const
 {
-  return binlog_type() == source.real_field_type() ?
+  return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
          CONV_TYPE_IMPOSSIBLE;
 }
@@ -720,7 +720,7 @@ Field_year::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
                                const Conv_param &param) const
 {
-  return binlog_type() == source.real_field_type() ?
+  return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
          CONV_TYPE_IMPOSSIBLE;
 }
@@ -750,7 +750,7 @@ Field_geom::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
                                const Conv_param &param) const
 {
-  return binlog_type() == source.real_field_type() ?
+  return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
          CONV_TYPE_IMPOSSIBLE;
 }

@@ -3165,6 +3165,93 @@ err:
 }
 
 /**
+  Interface for iterator over charset columns.
+*/
+class Table_map_log_event::Charset_iterator
+{
+ public:
+  typedef Table_map_log_event::Optional_metadata_fields::Default_charset
+      Default_charset;
+  virtual const CHARSET_INFO *next()= 0;
+  virtual ~Charset_iterator(){};
+  /**
+    Factory method to create an instance of the appropriate subclass.
+  */
+  static std::unique_ptr<Charset_iterator> create_charset_iterator(
+      const Default_charset &default_charset,
+      const std::vector<uint> &column_charset);
+};
+
+/**
+  Implementation of charset iterator for the DEFAULT_CHARSET type.
+*/
+class Table_map_log_event::Default_charset_iterator : public Charset_iterator
+{
+ public:
+  Default_charset_iterator(const Default_charset &default_charset)
+      : m_iterator(default_charset.charset_pairs.begin()),
+        m_end(default_charset.charset_pairs.end()),
+        m_column_index(0),
+        m_default_charset_info(
+            get_charset(default_charset.default_charset, 0)) {}
+
+  const CHARSET_INFO *next() override {
+    const CHARSET_INFO *ret;
+    if (m_iterator != m_end && m_iterator->first == m_column_index) {
+      ret = get_charset(m_iterator->second, 0);
+      m_iterator++;
+    } else
+      ret = m_default_charset_info;
+    m_column_index++;
+    return ret;
+  }
+  ~Default_charset_iterator(){};
+
+ private:
+  std::vector<Optional_metadata_fields::uint_pair>::const_iterator m_iterator,
+      m_end;
+  uint m_column_index;
+  const CHARSET_INFO *m_default_charset_info;
+};
+//Table_map_log_event::Default_charset_iterator::~Default_charset_iterator(){int a=8;a++; a--;};
+/**
+  Implementation of charset iterator for the COLUMNT_CHARSET type.
+*/
+class Table_map_log_event::Column_charset_iterator : public Charset_iterator
+{
+ public:
+  Column_charset_iterator(const std::vector<uint> &column_charset)
+      : m_iterator(column_charset.begin()), m_end(column_charset.end()) {}
+
+  const CHARSET_INFO *next() override {
+    const CHARSET_INFO *ret = nullptr;
+    if (m_iterator != m_end) {
+      ret = get_charset(*m_iterator, 0);
+      m_iterator++;
+    }
+    return ret;
+  }
+
+ ~Column_charset_iterator(){};
+ private:
+  std::vector<uint>::const_iterator m_iterator;
+  std::vector<uint>::const_iterator m_end;
+};
+//Table_map_log_event::Column_charset_iterator::~Column_charset_iterator(){int a=8;a++; a--;};
+
+std::unique_ptr<Table_map_log_event::Charset_iterator>
+Table_map_log_event::Charset_iterator::create_charset_iterator(
+    const Default_charset &default_charset,
+    const std::vector<uint> &column_charset)
+{
+  if (!default_charset.empty())
+    return std::unique_ptr<Charset_iterator>(
+        new Default_charset_iterator(default_charset));
+  else
+    return std::unique_ptr<Charset_iterator>(
+        new Column_charset_iterator(column_charset));
+}
+/**
    return the string name of a type.
 
    @param[in] type  type of a column

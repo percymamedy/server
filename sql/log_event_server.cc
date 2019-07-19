@@ -5911,10 +5911,14 @@ int Table_map_log_event::save_field_metadata()
 {
   DBUG_ENTER("Table_map_log_event::save_field_metadata");
   int index= 0;
+  Binlog_type_info *info;
   for (unsigned int i= 0 ; i < m_table->s->fields ; i++)
   {
     DBUG_PRINT("debug", ("field_type: %d", m_coltype[i]));
-    index+= m_table->s->field[i]->save_field_metadata(&m_field_metadata[index]);
+    //index+= m_table->s->field[i]->save_field_metadata(&m_field_metadata[index]);
+     info= m_table->field[i]->binlog_type_info();
+    memcpy(&m_field_metadata[index], (uchar *)&info->m_metadata, info->m_metadata_size);
+    index+= info->m_metadata_size;
     DBUG_EXECUTE_IF("inject_invalid_blob_size",
                     {
                       if (m_coltype[i] == MYSQL_TYPE_BLOB)
@@ -5981,7 +5985,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   {
     m_coltype= reinterpret_cast<uchar*>(m_memory);
     for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
-      m_coltype[i]= m_table->field[i]->binlog_type();
+      m_coltype[i]= m_table->field[i]->binlog_type_info()->m_type_code;
     DBUG_EXECUTE_IF("inject_invalid_column_type", m_coltype[1]= 230;);
   }
 
@@ -6375,11 +6379,9 @@ bool write_tlv_field(String &str_buf,
                          reinterpret_cast<const uchar *>(value.ptr()));
 }
 
-
-#ifdef MYSQL_SERVER
 static inline bool is_numeric_field(const Field *field)
 {
-  return is_numeric_type(field->binlog_type());
+  return is_numeric_type(field->binlog_type_info()->m_type_code);
 }
 
 static inline bool is_character_field(const Field *field)
@@ -6725,7 +6727,6 @@ bool Table_map_log_event::init_primary_key_field()
     return write_tlv_field(m_metadata_buf, PRIMARY_KEY_WITH_PREFIX, buf);
   }
 }
-#endif
 
 #if defined(HAVE_REPLICATION)
 /*
