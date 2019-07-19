@@ -50,7 +50,7 @@ ref should be order-nest.a
 explain
 select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	100	Using filesort
 1	SIMPLE	t1	ref	a	a	5	order-nest.a	1	
 select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
@@ -58,3 +58,72 @@ b	b
 0	0
 1	1
 drop table t1,t2,ten,one_k;
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1(a int, b int);
+insert into t1 select A.a + B.a* 10, A.a + B.a* 10 from ten A, ten B;
+create table t2(a int, b int);
+insert into t2(a,b) values (1,1), (2,2);
+insert into t2 select A.a + B.a* 10, A.a+B.a*10 from ten A, ten B;
+create table t3(a int, b int);
+insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+# 3 table join, {t1,t2} part of the nest and t3 outside the nest 
+explain select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain format=json select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 100,
+      "filtered": 100,
+      "attached_condition": "t1.a > 95"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 102,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "1Kb",
+      "join_type": "BNL",
+      "attached_condition": "t2.a = t1.a"
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`order-nest`.b",
+        "table": {
+          "table_name": "<order-nest>",
+          "access_type": "ALL",
+          "rows": 102,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 1000,
+      "filtered": 100,
+      "attached_condition": "t3.a = `order-nest`.b"
+    }
+  }
+}
+select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
+a	b	a	b	a	b
+96	96	96	96	96	96
+97	97	97	97	97	97
+98	98	98	98	98	98
+99	99	99	99	99	99
+drop table t1,t2,t3,ten,one_k;

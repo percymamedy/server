@@ -28,3 +28,26 @@ select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
 select t1.b,t2.b from t1,t2 where t1.a=t2.a  order by t2.b limit 2;
 
 drop table t1,t2,ten,one_k;
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_k(a int);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+create table t1(a int, b int);
+insert into t1 select A.a + B.a* 10, A.a + B.a* 10 from ten A, ten B;
+create table t2(a int, b int);
+insert into t2(a,b) values (1,1), (2,2);
+insert into t2 select A.a + B.a* 10, A.a+B.a*10 from ten A, ten B;
+create table t3(a int, b int);
+insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+--echo # 3 table join, {t1,t2} part of the nest and t3 outside the nest 
+let $query= 
+select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
+
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+drop table t1,t2,t3,ten,one_k;

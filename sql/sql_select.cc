@@ -311,10 +311,9 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
 void substitute_base_to_nest_items(JOIN *join);
-void substitute_base_to_nest_items2(JOIN *join, Item *cond);
-void
-check_cond_extraction_for_nest(THD *thd, Item *cond,
-                               Pushdown_checker checker, uchar* arg);
+void substitute_base_to_nest_items2(JOIN *join, Item **cond);
+void check_cond_extraction_for_nest(THD *thd, Item *cond,
+                                    Pushdown_checker checker, uchar* arg);
 
 #ifndef DBUG_OFF
 
@@ -4818,12 +4817,13 @@ void substitute_base_to_nest_items(JOIN *join)
       }
     }
   }
-  substitute_base_to_nest_items2(join, join->conds);
+  substitute_base_to_nest_items2(join, &join->conds);
 }
 
-void substitute_base_to_nest_items2(JOIN *join, Item *cond)
+void substitute_base_to_nest_items2(JOIN *join, Item **cond)
 {
   NEST_INFO *order_nest_info= join->order_nest_info;
+  Item *orig_cond= *cond;
   if (!order_nest_info)
     return;
   THD *thd= join->thd;
@@ -4831,39 +4831,39 @@ void substitute_base_to_nest_items2(JOIN *join, Item *cond)
   SELECT_LEX* sl= join->select_lex;
 
   /*
-    check_pushable_cond would make all the condition that we wont be pushing
-    inside the sort nest, it set NO_EXTRACTION_FL for all the items that could
-    not be added to the FL
+    check_cond_extraction_for_nest would set NO_EXTRACTION_FL for
+    all the items that cannot be added to the inner tables of the nest
   */
-  check_cond_extraction_for_nest(thd, cond,
+  check_cond_extraction_for_nest(thd, orig_cond,
                                  &Item::pushable_cond_checker_for_nest,
                                  (uchar *)(&order_nest_info->nest_tables_map));
   /*
-    build_pushable_cond would create the entire condition that would be added
-    to the tables inside the nest
+    build_cond_for_grouping_fields would create the entire
+    condition that would be added to the tables inside the nest.
+    This may clone some items too.
   */
-  extracted_cond= sl->build_cond_for_grouping_fields(thd, cond, TRUE);
+  extracted_cond= sl->build_cond_for_grouping_fields(thd, orig_cond, TRUE);
 
   if (extracted_cond)
   {
+    if (extracted_cond->fix_fields_if_needed(thd, 0))
+      return;
     /*
-      Remove from the WHERE clause all the conditions that were added to the inner
-      tables of the sort nest
+      Remove from the WHERE clause all the conditions that were added
+      to the inner tables of the sort nest
     */
-    cond= remove_pushed_top_conjuncts(thd, cond);
+    orig_cond= remove_pushed_top_conjuncts(thd, orig_cond);
     order_nest_info->nest_cond= extracted_cond;
-    extracted_cond->update_used_tables();
   }
 
   REPLACE_NEST_FIELD_ARG arg= {join};
-  if (cond)
+  if (orig_cond)
   {
-    cond= cond->transform(join->thd, &Item::replace_with_nest_items,
-                         (uchar *) &arg);
-
-  /* call fix fields for the extracted conds and for the changed where clause */
-    cond->update_used_tables();
+    orig_cond= orig_cond->transform(join->thd, &Item::replace_with_nest_items,
+                                    (uchar *) &arg);
+    orig_cond->update_used_tables();
   }
+  *cond= orig_cond;
 }
 
 /*
@@ -11436,12 +11436,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     JOIN_TAB *tab;
     table_map current_map;
     i= join->const_tables;
+    Item *saved_cond= cond;
+    NEST_INFO *order_nest_info= join->order_nest_info;
+    if (order_nest_info)
+      cond= order_nest_info->nest_cond;
+
     for (tab= first_depth_first_tab(join); tab;
          tab= next_depth_first_tab(join, tab))
     {
       bool is_hj;
       if (tab->is_order_nest)
+      {
+        cond= saved_cond;
         continue;
+      }
 
       /*
         first_inner is the X in queries like:
