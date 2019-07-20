@@ -43,11 +43,46 @@ insert into t2 select A.a + B.a* 10, A.a+B.a*10 from ten A, ten B;
 create table t3(a int, b int);
 insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
 
---echo # 3 table join, {t1,t2} part of the nest and t3 outside the nest 
+delimiter |;
+create function f1(a int) returns int
+begin
+  declare b int default 0;
+  return a+b;
+end|
+delimiter ;|
+
+--echo Covering 3 table joins
+
+--echo # {t1,t2} part of the nest
+--echo # t1.a > 95 would be attached to table t1
+--echo # t1.b=t2.a would be attached to table t2;
+
 let $query= 
 select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
-
 eval explain $query;
 eval explain format=json $query;
 eval $query;
+
+--echo # {t1,t2} part of the sort nest
+--echo # (t2.a < 2 or t1.b > 98) would be attached to table t2
+
+let $query= 
+select * from t1,t2,t3 where (t3.a<2 and  t2.a <2) or (t1.b > 98 and t3.b > 98)
+order by t1.a, t2.b limit 5;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
+--echo # {t1,t2} part of the nest
+--echo # t2.a < 2 or f1(t1.b) attached to table t2
+--echo # t1.b=t2.a would be attached to table t2;
+
+let $query= 
+select * from t1,t2,t3 where (t3.a<2  and t2.a <2) or (f1(t1.b) > 98 and t3.b > 98)
+order by t1.a,t2.b limit 5;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
 drop table t1,t2,t3,ten,one_k;
+drop function f1;

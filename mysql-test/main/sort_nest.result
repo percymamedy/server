@@ -69,7 +69,15 @@ insert into t2(a,b) values (1,1), (2,2);
 insert into t2 select A.a + B.a* 10, A.a+B.a*10 from ten A, ten B;
 create table t3(a int, b int);
 insert into t3 select A.a + B.a* 10 + C.a * 100, A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
-# 3 table join, {t1,t2} part of the nest and t3 outside the nest 
+create function f1(a int) returns int
+begin
+declare b int default 0;
+return a+b;
+end|
+Covering 3 table joins
+# {t1,t2} part of the nest
+# t1.a > 95 would be attached to table t1
+# t1.b=t2.a would be attached to table t2;
 explain select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
@@ -126,4 +134,127 @@ a	b	a	b	a	b
 97	97	97	97	97	97
 98	98	98	98	98	98
 99	99	99	99	99	99
+# {t1,t2} part of the sort nest
+# (t2.a < 2 or t1.b > 98) would be attached to table t2
+explain select * from t1,t2,t3 where (t3.a<2 and  t2.a <2) or (t1.b > 98 and t3.b > 98)
+order by t1.a, t2.b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain format=json select * from t1,t2,t3 where (t3.a<2 and  t2.a <2) or (t1.b > 98 and t3.b > 98)
+order by t1.a, t2.b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 100,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 102,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "1Kb",
+      "join_type": "BNL",
+      "attached_condition": "t2.a < 2 or t1.b > 98"
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`order-nest`.a, `order-nest`.b",
+        "table": {
+          "table_name": "<order-nest>",
+          "access_type": "ALL",
+          "rows": 102,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 1000,
+      "filtered": 100,
+      "attached_condition": "t3.a < 2 and `order-nest`.a < 2 or `order-nest`.b > 98 and t3.b > 98"
+    }
+  }
+}
+select * from t1,t2,t3 where (t3.a<2 and  t2.a <2) or (t1.b > 98 and t3.b > 98)
+order by t1.a, t2.b limit 5;
+a	b	a	b	a	b
+0	0	1	1	0	0
+0	0	1	1	1	1
+1	1	1	1	0	0
+1	1	1	1	1	1
+2	2	1	1	0	0
+# {t1,t2} part of the nest
+# t2.a < 2 or f1(t1.b) attached to table t2
+# t1.b=t2.a would be attached to table t2;
+explain select * from t1,t2,t3 where (t3.a<2  and t2.a <2) or (f1(t1.b) > 98 and t3.b > 98)
+order by t1.a,t2.b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain format=json select * from t1,t2,t3 where (t3.a<2  and t2.a <2) or (f1(t1.b) > 98 and t3.b > 98)
+order by t1.a,t2.b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 100,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 102,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "1Kb",
+      "join_type": "BNL"
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`order-nest`.a, `order-nest`.b",
+        "table": {
+          "table_name": "<order-nest>",
+          "access_type": "ALL",
+          "rows": 102,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 1000,
+      "filtered": 100,
+      "attached_condition": "t3.a < 2 and `order-nest`.a < 2 or f1(`order-nest`.b) > 98 and t3.b > 98"
+    }
+  }
+}
+select * from t1,t2,t3 where (t3.a<2  and t2.a <2) or (f1(t1.b) > 98 and t3.b > 98)
+order by t1.a,t2.b limit 5;
+a	b	a	b	a	b
+0	0	0	0	0	0
+0	0	0	0	1	1
+0	0	1	1	0	0
+0	0	1	1	1	1
+0	0	1	1	0	0
 drop table t1,t2,t3,ten,one_k;
+drop function f1;
