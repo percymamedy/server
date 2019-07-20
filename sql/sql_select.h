@@ -1621,9 +1621,10 @@ public:
   /* Number of tables actually joined at the top level */
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
 
-  /*uint order_nest_table_count() { return order_nest_info ? order_nest_info->n_tables : 0; }
-  JOIN_TAB* first_non_const_table() { return join_tab + const_tables; }
-  JOIN_TAB* order_nest_tab() { return first_non_const_table() + order_nest_table_count(); }*/
+  /* TRUE if the sort-nest contains more than one table else FALSE */
+  bool sort_nest_needed() { return order_nest_info ?
+                                   (order_nest_info->n_tables == 1 ? FALSE : TRUE):
+                                   FALSE; }
 
   /*
     Number of tables in the join which also includes the temporary tables

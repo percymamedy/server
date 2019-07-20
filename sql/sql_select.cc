@@ -4774,9 +4774,9 @@ static Item **get_sargable_cond(JOIN *join, TABLE *table)
 
 void substitute_base_to_nest_items(JOIN *join)
 {
-  NEST_INFO *order_nest_info= join->order_nest_info;
-  if (!order_nest_info)
+  if (!join->sort_nest_needed())
     return;
+  NEST_INFO *order_nest_info= join->order_nest_info;
   REPLACE_NEST_FIELD_ARG arg= {join};
 
   List_iterator<Item> it(join->fields_list);
@@ -10529,23 +10529,27 @@ bool JOIN::get_best_combination()
            in the temptable.
       */
       JOIN_TAB *prev= j;
-      j= j+1;
-      bzero((void*)j, sizeof(JOIN_TAB));
+      if ((prev - (join_tab + const_tables) > 0))
+      {
+        j= j+1;
+        bzero((void*)j, sizeof(JOIN_TAB));
 
-      j->join= this;
-      j->table= NULL; //temporary way to tell SJM tables from others.
-      j->ref.key = -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      j->is_order_nest= TRUE;
-      j->records_read= prev->records_read * prev->cond_selectivity;
-      j->records= (ha_rows) j->records_read;
-      j->cond_selectivity= 1.0;
+        j->join= this;
+        j->table= NULL; //temporary way to tell SJM tables from others.
+        j->ref.key = -1;
+        j->on_expr_ref= (Item**) &null_ptr;
+        j->is_order_nest= TRUE;
+        j->records_read= prev->records_read * prev->cond_selectivity;
+        j->records= (ha_rows) j->records_read;
+        j->cond_selectivity= 1.0;
+      }
       NEST_INFO *order_nest_info;
       if (!(order_nest_info= new NEST_INFO()))
         return TRUE;
-      order_nest_info->n_tables= j - (join_tab + const_tables);
+      order_nest_info->n_tables= prev - (join_tab + const_tables)+1;
       order_nest_info->nest_tab= j;
       this->order_nest_info= order_nest_info;
+      DBUG_ASSERT(order_nest_info->n_tables != 0);
     }
   }
   root_range->end= j;
@@ -11438,7 +11442,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     i= join->const_tables;
     Item *saved_cond= cond;
     NEST_INFO *order_nest_info= join->order_nest_info;
-    if (order_nest_info)
+    if (join->sort_nest_needed())
       cond= order_nest_info->nest_cond;
 
     for (tab= first_depth_first_tab(join); tab;
@@ -14463,13 +14467,17 @@ bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
 
 bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
 {
-  if (!tab->is_order_nest)
-    return FALSE;
+  /*
+    The sort nest is only needed when there are more than one table
+    in the sort nest, else we can just sort with the first table if the
+    sort nest has only one table
+  */
+  DBUG_ASSERT(join->sort_nest_needed());
+  NEST_INFO* order_nest_info= join->order_nest_info;
   THD *thd= join->thd;
   Field_iterator_table field_iterator;
 
   JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j;
-  NEST_INFO* order_nest_info= join->order_nest_info;
   order_nest_info->nest_tables_map= 0;
 
   /* This needs to be added to JOIN  structure, looks the best option or we
