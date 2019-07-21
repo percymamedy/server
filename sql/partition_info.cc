@@ -808,6 +808,13 @@ bool partition_info::has_unique_name(partition_element *element)
 }
 
 
+/* Auto-create history partition configuration */
+static const uint VERS_MIN_EMPTY= 1;
+static const uint VERS_MIN_INTERVAL= 3600; // seconds
+static const uint VERS_MIN_LIMIT= 1000;
+static const uint VERS_ERROR_TIMEOUT= 300; // seconds
+
+
 /**
   @brief Switch history partition according limit or interval
 
@@ -834,7 +841,7 @@ void partition_info::vers_set_hist_part(THD *thd)
       vers_info->hist_part= next;
       records= next_records;
     }
-    if (records > vers_info->limit)
+    if (records >= vers_info->limit)
     {
       if (next == vers_info->now_part)
       {
@@ -845,29 +852,260 @@ void partition_info::vers_set_hist_part(THD *thd)
       else
         vers_info->hist_part= next;
     }
+    if (vers_info->limit >= VERS_MIN_LIMIT)
+      goto add_hist_part;
     return;
   }
 
   if (vers_info->interval.is_set())
   {
-    if (vers_info->hist_part->range_value > thd->query_start())
-      return;
-
-    partition_element *next= NULL;
-    List_iterator<partition_element> it(partitions);
-    while (next != vers_info->hist_part)
-      next= it++;
-
-    while ((next= it++) != vers_info->now_part)
+    if (vers_info->hist_part->range_value <= thd->query_start())
     {
-      vers_info->hist_part= next;
-      if (next->range_value > thd->query_start())
-        return;
+      partition_element *next= NULL;
+      bool error= true;
+      List_iterator<partition_element> it(partitions);
+      while (next != vers_info->hist_part)
+        next= it++;
+
+      while ((next= it++) != vers_info->now_part)
+      {
+        vers_info->hist_part= next;
+        if (next->range_value > thd->query_start())
+        {
+          error= false;
+          break;
+        }
+      }
+      if (error)
+        my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+                 table->s->db.str, table->s->table_name.str,
+                 vers_info->hist_part->partition_name, "INTERVAL");
     }
-    my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-            table->s->db.str, table->s->table_name.str,
-            vers_info->hist_part->partition_name, "INTERVAL");
+    if (vers_info->interval >= VERS_MIN_INTERVAL)
+      goto add_hist_part;
   }
+
+  return;
+
+add_hist_part:
+  switch (thd->lex->sql_command)
+  {
+  case SQLCOM_DELETE:
+    if (thd->lex->last_table()->vers_conditions.type == SYSTEM_TIME_HISTORY)
+      break;
+  case SQLCOM_UPDATE:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_LOAD:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_UPDATE_MULTI:
+  {
+    time_t &timeout= table->s->vers_hist_part_timeout;
+    if (!thd->slave_thread &&
+        vers_info->hist_part->id + VERS_MIN_EMPTY == vers_info->now_part->id)
+    {
+      if (!timeout || timeout < thd->query_start())
+        vers_add_hist_part(thd);
+      else if (table->s->vers_hist_part_error)
+      {
+        my_error(WARN_VERS_HIST_PART_ERROR, MYF(ME_WARNING),
+                table->s->db.str, table->s->table_name.str,
+                table->s->vers_hist_part_error);
+      }
+    }
+  }
+  default:;
+  }
+}
+
+
+struct vers_add_hist_part_data
+{
+  LEX_STRING query;
+  LEX_CSTRING db;
+  LEX_CSTRING table_name;
+  LEX_STRING part_name;
+  my_time_t  start_time;
+  ulong      start_time_sec_part;
+
+  TABLE_SHARE *s;
+
+  void assign(THD *thd, String &q, TABLE *table, String &p)
+  {
+    start_time= thd->start_time;
+    start_time_sec_part= thd->start_time_sec_part;
+    s= table->s;
+
+    memcpy(query.str, q.c_ptr_quick(), q.length());
+    query.str[q.length()]= 0;
+    query.length= q.length();
+
+    db.length= table->s->db.length;
+    memcpy((char *)db.str, table->s->db.str, db.length);
+    ((char *)db.str)[db.length]= 0;
+
+    table_name.length= table->s->table_name.length;
+    memcpy((char *)table_name.str, table->s->table_name.str, table_name.length);
+    ((char *)table_name.str)[table_name.length]= 0;
+
+    memcpy(part_name.str, p.c_ptr_quick(), p.length());
+    part_name.str[p.length()]= 0;
+    part_name.length= p.length();
+  }
+};
+
+pthread_handler_t vers_add_hist_part_thread(void *arg)
+{
+  Parser_state parser_state;
+  uint error;
+  DBUG_ASSERT(arg);
+  vers_add_hist_part_data &d= *(vers_add_hist_part_data *) arg;
+  TABLE *table;
+  sql_print_information("Adding history partition `%s` for table `%s`.`%s`",
+                        d.part_name.str,
+                        d.db.str,
+                        d.table_name.str);
+  my_thread_init();
+  /* Initialize THD */
+  THD *thd= new THD(next_thread_id());
+  if (unlikely(!thd))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    goto err1;
+  }
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->set_command(COM_DAEMON);
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  thd->security_ctx->host_or_ip= "";
+  thd->security_ctx->master_access= ALTER_ACL;
+  thd->log_all_errors= true;
+  thd->start_time= d.start_time;
+  thd->start_time_sec_part= d.start_time_sec_part;
+  server_threads.insert(thd);
+  thd_proc_info(thd, "Add history partition");
+  /* Initialize parser */
+  lex_start(thd);
+  if (unlikely(parser_state.init(thd, d.query.str, d.query.length)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    lex_end(thd->lex);
+    goto err2;
+  }
+  if (unlikely(parse_sql(thd, &parser_state, NULL)))
+  {
+    lex_end(thd->lex);
+    goto err2;
+  }
+  thd->set_query_and_id(LEX_STRING_WITH_LEN(d.query), thd->charset(), next_query_id());
+  MYSQL_QUERY_EXEC_START(thd->query(), thd->thread_id, "", "", "", 0);
+  error= (uint) mysql_execute_command(thd);
+  MYSQL_QUERY_EXEC_DONE(error);
+  if (unlikely(error) && thd->is_error())
+  {
+    error= thd->get_stmt_da()->get_sql_errno();
+    thd->clear_error();
+    TABLE_LIST table_list;
+    table_list.init_one_table(&d.db, &d.table_name, &d.table_name, TL_UNLOCK);
+    TABLE_SHARE *s= tdc_acquire_share(thd, &table_list, GTS_TABLE);
+    if (s == d.s)
+    {
+      /* Timeout new ALTER for 5 minutes in case of error */
+      s->vers_hist_part_timeout= thd->query_start() + VERS_ERROR_TIMEOUT;
+      s->vers_hist_part_error= error;
+      s->vers_altering= false;
+    }
+    if (s)
+      tdc_release_share(s);
+  }
+  /* In case of success ALTER invalidates TABLE_SHARE */
+  thd->end_statement();
+  thd->cleanup_after_query();
+err2:
+  server_threads.erase(thd);
+  delete thd;
+err1:
+  my_free(arg);
+  my_thread_end();
+  return NULL;
+}
+
+
+void partition_info::vers_add_hist_part(THD *thd)
+{
+  pthread_t hThread;
+  int error;
+
+  /* Prevent spawning multiple instances of same task */
+  bool altering;
+  mysql_mutex_lock(&table->s->LOCK_share);
+  altering= table->s->vers_altering;
+  if (!altering)
+    table->s->vers_altering= true;
+  mysql_mutex_unlock(&table->s->LOCK_share);
+  if (altering)
+    return;
+
+  /* Choose first non-occupied name suffix starting from id + 1 */
+  uint32 suffix= vers_info->hist_part->id + 1;
+  static const char *prefix= "p";
+  static const size_t prefix_len= strlen(prefix);
+  List_iterator_fast<partition_element> it(partitions);
+  partition_element *el;
+  String part_name(prefix, prefix_len, &my_charset_latin1);
+  if (part_name.append_ulonglong(suffix))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    return;
+  }
+
+  while ((el= it++))
+  {
+    if (0 == my_strcasecmp(&my_charset_latin1, el->partition_name, part_name.c_ptr()))
+    {
+      ++suffix;
+      part_name.set(prefix, prefix_len, &my_charset_latin1);
+      if (part_name.append_ulonglong(suffix))
+      {
+        my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+        return;
+      }
+      it.rewind();
+    }
+  }
+
+  String q(STRING_WITH_LEN("ALTER TABLE `"), &my_charset_latin1);
+  if (q.append(table->s->db) ||
+      q.append(STRING_WITH_LEN("`.`")) ||
+      q.append(table->s->table_name) ||
+      q.append("` ADD PARTITION (PARTITION `") ||
+      q.append(part_name) ||
+      q.append("` HISTORY)"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    return;
+  }
+  vers_add_hist_part_data *data;
+  vers_add_hist_part_data bufs;
+  if (!my_multi_malloc(MYF(MY_WME|ME_ERROR_LOG), &data, sizeof(*data),
+                       &bufs.query.str, q.length() + 1,
+                       &bufs.db.str, table->s->db.length + 1,
+                       &bufs.table_name.str, table->s->table_name.length + 1,
+                       &bufs.part_name.str, part_name.length() + 1,
+                       NULL))
+    return;
+  bufs.assign(thd, q, table, part_name);
+  *data= bufs;
+
+  if ((error= mysql_thread_create(key_thread_query, &hThread,
+                                  &connection_attrib, vers_add_hist_part_thread, data)))
+  {
+    sql_print_warning("Can't create vers_add_hist_part thread (errno= %d)",
+                      error);
+  }
+  return;
 }
 
 

@@ -1,3 +1,4 @@
+call mtr.add_suppression("need more HISTORY partitions");
 create table t (a int);
 delete history from t before system_time now();
 ERROR HY000: Table `t` is not system-versioned
@@ -62,6 +63,8 @@ insert into t values (1);
 update t set a= 2;
 update t set a= 3;
 delete history from t;
+Warnings:
+Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
 select * from t for system_time all;
 a
 3
@@ -126,5 +129,16 @@ truncate t1;
 truncate t2;
 ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
 unlock tables;
+#
+# MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+#
+# Don't auto-create new partition on DELETE HISTORY:
+create or replace table t (a int)
+with system versioning
+partition by system_time limit 1000;
+delete history from t;
+select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't' and table_schema = 'test';
+hist_partitions
+1
 drop database test;
 create database test;

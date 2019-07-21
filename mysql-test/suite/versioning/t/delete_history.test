@@ -2,6 +2,8 @@
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 
+call mtr.add_suppression("need more HISTORY partitions");
+
 create table t (a int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
@@ -140,6 +142,16 @@ truncate t1;
 truncate t2;
 
 unlock tables;
+
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+--echo #
+--echo # Don't auto-create new partition on DELETE HISTORY:
+create or replace table t (a int)
+with system versioning
+partition by system_time limit 1000;
+delete history from t;
+select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't' and table_schema = 'test';
 
 drop database test;
 create database test;

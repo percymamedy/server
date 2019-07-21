@@ -69,7 +69,27 @@ struct Vers_part_info : public Sql_alloc
     my_time_t start;
     INTERVAL step;
     enum interval_type type;
-    bool is_set() { return type < INTERVAL_LAST; }
+    bool is_set() const { return type < INTERVAL_LAST; }
+    bool operator< (size_t seconds) const
+    {
+      if (step.second)
+        return step.second < seconds;
+      if (step.minute)
+        return step.minute * 60 < seconds;
+      if (step.hour)
+        return step.hour * 3600 < seconds;
+      if (step.day)
+        return step.day * 3600 * 24 < seconds;
+      // comparison is used in rough estimates, it doesn't need to be calendar-correct
+      if (step.month)
+        return step.month * 3600 * 24 * 30 < seconds;
+      DBUG_ASSERT(step.year);
+      return step.year * 86400 * 30 * 365;
+    }
+    bool operator>= (size_t seconds) const
+    {
+      return !((*this) < seconds);
+    }
   } interval;
   ulonglong limit;
   partition_element *now_part;
@@ -403,6 +423,7 @@ public:
     return !limit;
   }
   void vers_set_hist_part(THD *thd);
+  void vers_add_hist_part(THD *thd);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
