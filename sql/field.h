@@ -1185,7 +1185,7 @@ public:
   virtual enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                             const Relay_log_info *rli,
                                             const Conv_param &param)
-                                            const= 0;
+                                            = 0;
   enum_conv_type rpl_conv_type_from_same_data_type(uint16 metadata,
                                                    const Relay_log_info *rli,
                                                    const Conv_param &param)
@@ -2049,7 +2049,7 @@ public:
     {}
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int store_decimal(const my_decimal *d);
   uint32 max_data_length() const;
 
@@ -2092,7 +2092,7 @@ public:
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -2204,7 +2204,7 @@ public:
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
   bool store_value(const my_decimal *decimal_value, int *native_error);
@@ -2280,7 +2280,7 @@ public:
     {}
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
@@ -2750,7 +2750,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_null; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
@@ -2941,7 +2941,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Copy_func *get_copy_func(const Field *from) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
@@ -3096,7 +3096,7 @@ public:
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   uint32 pack_length() const
   {
     return my_timestamp_binary_length(dec);
@@ -3139,7 +3139,7 @@ public:
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -3224,7 +3224,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_date::get_TIME(ltime, ptr, fuzzydate); }
@@ -3264,7 +3264,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=0; return 0; }
   double val_real(void);
   longlong val_int(void);
@@ -3310,7 +3310,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Copy_func *get_copy_func(const Field *from) const
   {
     return from->cmp_type() == REAL_RESULT ? do_field_string : // MDEV-9344
@@ -3425,7 +3425,7 @@ public:
   enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   uint32 pack_length() const
   {
     return my_time_binary_length(dec);
@@ -3474,7 +3474,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3599,7 +3599,7 @@ public:
   enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   uint32 pack_length() const
   {
     return my_datetime_binary_length(dec);
@@ -4303,7 +4303,7 @@ public:
   { geom_type= geom_type_arg; srid= field_srid; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   const Type_handler *type_handler() const
   {
@@ -4392,7 +4392,7 @@ public:
   enum ha_base_keytype key_type() const;
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))
@@ -4549,7 +4549,7 @@ public:
   uint32 max_display_length() const { return field_length; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const;
+                                    const Conv_param &param);
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -4729,7 +4729,7 @@ public:
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param)
   {
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;

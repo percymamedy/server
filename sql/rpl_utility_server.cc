@@ -416,7 +416,7 @@ Field::rpl_conv_type_from_same_data_type(uint16 metadata,
 enum_conv_type
 Field_new_decimal::rpl_conv_type_from(const Conv_source &source,
                                       const Relay_log_info *rli,
-                                      const Conv_param &param) const
+                                      const Conv_param &param)
 {
   if (Field_new_decimal::binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -441,7 +441,7 @@ Field_new_decimal::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_real::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -464,7 +464,7 @@ Field_real::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_int::rpl_conv_type_from(const Conv_source &source,
                               const Relay_log_info *rli,
-                              const Conv_param &param) const
+                              const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -501,7 +501,7 @@ Field_int::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_enum::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   /*
     For some reasons Field_enum and Field_set store MYSQL_TYPE_STRING
@@ -517,7 +517,7 @@ Field_enum::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_longstr::rpl_conv_type_from(const Conv_source &source,
                                   const Relay_log_info *rli,
-                                  const Conv_param &param) const
+                                  const Conv_param &param)
 {
   /**
     @todo
@@ -577,7 +577,7 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_newdate::rpl_conv_type_from(const Conv_source &source,
                                   const Relay_log_info *rli,
-                                  const Conv_param &param) const
+                                  const Conv_param &param)
 {
   if (real_type() == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -590,7 +590,7 @@ Field_newdate::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_time::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -605,7 +605,7 @@ Field_time::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_timef::rpl_conv_type_from(const Conv_source &source,
                                 const Relay_log_info *rli,
-                                const Conv_param &param) const
+                                const Conv_param &param)
 {
   if (binlog_type() == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -622,7 +622,7 @@ Field_timef::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_timestamp::rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -637,7 +637,7 @@ Field_timestamp::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_timestampf::rpl_conv_type_from(const Conv_source &source,
                                      const Relay_log_info *rli,
-                                     const Conv_param &param) const
+                                     const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -655,7 +655,7 @@ Field_timestampf::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_datetime::rpl_conv_type_from(const Conv_source &source,
                                    const Relay_log_info *rli,
-                                   const Conv_param &param) const
+                                   const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -672,7 +672,7 @@ Field_datetime::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_datetimef::rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param)
 {
   if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
@@ -695,7 +695,7 @@ Field_datetimef::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_date::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   // old DATE
   return binlog_type_info()->m_type_code == source.real_field_type() ?
@@ -707,7 +707,7 @@ Field_date::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_bit::rpl_conv_type_from(const Conv_source &source,
                               const Relay_log_info *rli,
-                              const Conv_param &param) const
+                              const Conv_param &param)
 {
   return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
@@ -718,7 +718,7 @@ Field_bit::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_year::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :
@@ -729,7 +729,7 @@ Field_year::rpl_conv_type_from(const Conv_source &source,
 enum_conv_type
 Field_null::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   DBUG_ASSERT(0);
   return CONV_TYPE_IMPOSSIBLE;
@@ -748,7 +748,7 @@ Type_handler_geometry::max_display_length_for_field(const Conv_source &src)
 enum_conv_type
 Field_geom::rpl_conv_type_from(const Conv_source &source,
                                const Relay_log_info *rli,
-                               const Conv_param &param) const
+                               const Conv_param &param)
 {
   return binlog_type_info()->m_type_code == source.real_field_type() ?
          rpl_conv_type_from_same_data_type(source.metadata(), rli, param) :

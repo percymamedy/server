@@ -6379,7 +6379,7 @@ bool write_tlv_field(String &str_buf,
                          reinterpret_cast<const uchar *>(value.ptr()));
 }
 
-static inline bool is_numeric_field(const Field *field)
+static inline bool is_numeric_field(Field *field)
 {
   return is_numeric_type(field->binlog_type_info()->m_type_code);
 }
