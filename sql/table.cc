@@ -7682,15 +7682,25 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 
 int TABLE::update_virtual_field(Field *vf)
 {
-  DBUG_ASSERT(!in_use->is_error());
+  Diagnostics_area *stmt_da= NULL;
+  Diagnostics_area tmp_stmt_da(in_use->query_id, false, true);
+  bool error;
   Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
+  if (unlikely(in_use->is_error()))
+  {
+    stmt_da= in_use->get_stmt_da();
+    in_use->set_stmt_da(&tmp_stmt_da);
+  }
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
   vf->vcol_info->expr->save_in_field(vf, 0);
   in_use->restore_active_arena(expr_arena, &backup_arena);
-  DBUG_RETURN(in_use->is_error());
+  error= in_use->is_error();
+  if (stmt_da)
+    in_use->set_stmt_da(stmt_da);
+  DBUG_RETURN(error);
 }
 
 

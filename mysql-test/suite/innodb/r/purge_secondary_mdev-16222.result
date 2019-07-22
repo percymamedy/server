@@ -28,3 +28,12 @@ set global debug_dbug= @saved_dbug;
 drop table t1;
 set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
 set debug_sync= "RESET";
+#
+# MDEV-20015 Assertion `!in_use->is_error()' failed in TABLE::update_virtual_field
+#
+create or replace table t1 (a int);
+insert into t1 (a) values (1), (1);
+create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk), key(c));
+insert into t2 (pk) select a from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop tables t1, t2;
