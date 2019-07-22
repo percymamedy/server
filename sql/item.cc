@@ -6162,18 +6162,18 @@ Item *Item_field::replace_with_nest_items(THD *thd, uchar *arg)
 {
   REPLACE_NEST_FIELD_ARG* param= (REPLACE_NEST_FIELD_ARG*)arg;
   JOIN *join= param->join;
-  NEST_INFO *order_nest_info= join->order_nest_info;
-  if (!(used_tables() & order_nest_info->nest_tables_map))
+  SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
+  if (!(used_tables() & sort_nest_info->nest_tables_map))
     return this;
 
-  List_iterator_fast<Item> li(order_nest_info->nest_base_table_cols);
+  List_iterator_fast<Item> li(sort_nest_info->nest_base_table_cols);
   uint index= 0;
   Item *item;
   while((item= li++))
   {
     Item *field_item= item->real_item();
     if (field->eq(((Item_field*)field_item)->field))
-      return order_nest_info->nest_temp_table_cols.elem(index);
+      return sort_nest_info->nest_temp_table_cols.elem(index);
     index++;
   }
   return this;

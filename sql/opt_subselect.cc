@@ -4777,7 +4777,7 @@ int setup_semijoin_loosescan(JOIN *join)
   for (i= join->const_tables ; i < join->top_join_tab_count; )
   {
     JOIN_TAB *tab=join->join_tab + i;
-    if (tab->is_order_nest)
+    if (tab->is_sort_nest)
     {
       i++;
       continue;
@@ -5527,11 +5527,11 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
     prefix of the join order
   */
 
-  else if (tab->is_order_nest)
+  else if (tab->is_sort_nest)
   {
     enum_nested_loop_state rc;
     JOIN *join= tab->join;
-    NEST_INFO *nest_info= join->order_nest_info;
+    SORT_NEST_INFO *nest_info= join->sort_nest_info;
 
     if (!nest_info->materialized)
     {

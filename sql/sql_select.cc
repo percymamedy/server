@@ -2723,7 +2723,7 @@ int JOIN::optimize_stage2()
     Yet the current implementation of FORCE INDEX hints does not
     allow us to do it in a clean manner.
   */
-  no_jbuf_after= 1 ? (order_nest_info ? const_tables+ order_nest_info->n_tables
+  no_jbuf_after= 1 ? (sort_nest_info ? const_tables + sort_nest_info->n_tables
                                       : table_count)
                    : make_join_orderinfo(this);
 
@@ -3598,8 +3598,8 @@ bool JOIN::make_aggr_tables_info()
         curr_tab->type != JT_EQ_REF) // Don't sort 1 row
     {
       // Sort either first non-const table or the last tmp table
-      JOIN_TAB *sort_tab= order_nest_info ?
-                          order_nest_info->nest_tab :
+      JOIN_TAB *sort_tab= sort_nest_info ?
+                          sort_nest_info->nest_tab :
                           curr_tab;
 
       if (add_sorting_to_table(sort_tab, order_arg))
@@ -4438,7 +4438,7 @@ JOIN::destroy()
                                          WITH_CONST_TABLES);
          tab; tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
     {
-      if (tab->aggr || tab->is_order_nest)
+      if (tab->aggr || tab->is_sort_nest)
       {
         free_tmp_table(thd, tab->table);
         delete tab->tmp_table_param;
@@ -4776,7 +4776,7 @@ void substitute_base_to_nest_items(JOIN *join)
 {
   if (!join->sort_nest_needed())
     return;
-  NEST_INFO *order_nest_info= join->order_nest_info;
+  SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
   REPLACE_NEST_FIELD_ARG arg= {join};
 
   List_iterator<Item> it(join->fields_list);
@@ -4788,9 +4788,9 @@ void substitute_base_to_nest_items(JOIN *join)
                                   (uchar *) &arg)) != item)
       it.replace(new_item);
   }
-  JOIN_TAB *end_tab= order_nest_info->nest_tab;
+  JOIN_TAB *end_tab= sort_nest_info->nest_tab;
   uint i, j;
-  for (i= join->const_tables + order_nest_info->n_tables, j=0;
+  for (i= join->const_tables + sort_nest_info->n_tables, j=0;
        i < join->top_join_tab_count; i++, j++)
   {
     JOIN_TAB *tab= end_tab + j;
@@ -4822,9 +4822,9 @@ void substitute_base_to_nest_items(JOIN *join)
 
 void substitute_base_to_nest_items2(JOIN *join, Item **cond)
 {
-  NEST_INFO *order_nest_info= join->order_nest_info;
+  SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
   Item *orig_cond= *cond;
-  if (!order_nest_info)
+  if (!sort_nest_info)
     return;
   THD *thd= join->thd;
   Item *extracted_cond;
@@ -4836,7 +4836,7 @@ void substitute_base_to_nest_items2(JOIN *join, Item **cond)
   */
   check_cond_extraction_for_nest(thd, orig_cond,
                                  &Item::pushable_cond_checker_for_nest,
-                                 (uchar *)(&order_nest_info->nest_tables_map));
+                                 (uchar *)(&sort_nest_info->nest_tables_map));
   /*
     build_cond_for_grouping_fields would create the entire
     condition that would be added to the tables inside the nest.
@@ -4853,7 +4853,7 @@ void substitute_base_to_nest_items2(JOIN *join, Item **cond)
       to the inner tables of the sort nest
     */
     orig_cond= remove_pushed_top_conjuncts(thd, orig_cond);
-    order_nest_info->nest_cond= extracted_cond;
+    sort_nest_info->nest_cond= extracted_cond;
   }
 
   REPLACE_NEST_FIELD_ARG arg= {join};
@@ -7245,7 +7245,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].sj_strategy= SJ_OPT_NONE;
   join->positions[idx].use_join_buffer= FALSE;
   join->positions[idx].range_rowid_filter_info= 0;
-  join->positions[idx].ordering_achieved= FALSE;
+  join->positions[idx].sort_nest_operation_here= FALSE;
 
   /* Move the const table as down as possible in best_ref */
   JOIN_TAB **pos=join->best_ref+idx+1;
@@ -8093,7 +8093,7 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
-  pos->ordering_achieved= FALSE;
+  pos->sort_nest_operation_here= FALSE;
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -8313,7 +8313,7 @@ choose_plan(JOIN *join, table_map join_tables)
   {
     POSITION *pos= &join->best_positions[tablenr];
     join->order_nest_tables|=  pos->table->table->map;
-    if (pos->ordering_achieved)
+    if (pos->sort_nest_operation_here)
     {
       join->order_nest= TRUE;
       break;
@@ -8328,7 +8328,7 @@ choose_plan(JOIN *join, table_map join_tables)
     {
       POSITION *pos= &join->best_positions[tablenr];
       trace_order_nest.add_table_name(pos->table);
-      if (pos->ordering_achieved)
+      if (pos->sort_nest_operation_here)
         break;
     }
   }*/
@@ -9680,7 +9680,7 @@ best_extension_by_limited_search(JOIN      *join,
         if (!nest_created && !join->emb_sjm_nest && nest_allow && !join->need_order_nest() &&
             check_join_prefix_contains_ordering(join, s, previous_tables))
         {
-          join->positions[idx].ordering_achieved= TRUE;
+          join->positions[idx].sort_nest_operation_here= TRUE;
           double cost= postjoin_oper_cost(thd, partial_join_cardinality, AVG_REC_LEN, idx);
           current_read_time= COST_ADD(current_read_time, cost);
           if (best_extension_by_limited_search(join,
@@ -9694,7 +9694,7 @@ best_extension_by_limited_search(JOIN      *join,
                                                previous_tables | real_table_bit,
                                                TRUE, cardinality))
             DBUG_RETURN(TRUE);
-          join->positions[idx].ordering_achieved= FALSE;
+          join->positions[idx].sort_nest_operation_here= FALSE;
         }
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
@@ -10521,7 +10521,7 @@ bool JOIN::get_best_combination()
       sjm_nest_root= NULL;
       sjm_nest_end= NULL;
     }
-    if (cur_pos->ordering_achieved)
+    if (cur_pos->sort_nest_operation_here)
     {
       /*
         Ok, we've entered an ORDERING nest
@@ -10538,18 +10538,18 @@ bool JOIN::get_best_combination()
         j->table= NULL; //temporary way to tell SJM tables from others.
         j->ref.key = -1;
         j->on_expr_ref= (Item**) &null_ptr;
-        j->is_order_nest= TRUE;
+        j->is_sort_nest= TRUE;
         j->records_read= prev->records_read * prev->cond_selectivity;
         j->records= (ha_rows) j->records_read;
         j->cond_selectivity= 1.0;
       }
-      NEST_INFO *order_nest_info;
-      if (!(order_nest_info= new NEST_INFO()))
+      SORT_NEST_INFO *sort_nest_info;
+      if (!(sort_nest_info= new SORT_NEST_INFO()))
         return TRUE;
-      order_nest_info->n_tables= prev - (join_tab + const_tables)+1;
-      order_nest_info->nest_tab= j;
-      this->order_nest_info= order_nest_info;
-      DBUG_ASSERT(order_nest_info->n_tables != 0);
+      sort_nest_info->n_tables= prev - (join_tab + const_tables)+1;
+      sort_nest_info->nest_tab= j;
+      this->sort_nest_info= sort_nest_info;
+      DBUG_ASSERT(sort_nest_info->n_tables != 0);
     }
   }
   root_range->end= j;
@@ -10557,7 +10557,7 @@ bool JOIN::get_best_combination()
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
-    if (j->is_order_nest)
+    if (j->is_sort_nest)
       j++;
     if (j->bush_children)
       j= j->bush_children->start;
@@ -11251,7 +11251,7 @@ make_outerjoin_info(JOIN *join)
       maybe setup order nest here, we want the sj materialization fields, so we get them
       after the call to setup_sj_materialization_part1
     */
-    if (tab->is_order_nest)
+    if (tab->is_sort_nest)
     {
       if (setup_order_nest(join, tab))
         DBUG_RETURN(TRUE);
@@ -11263,7 +11263,7 @@ make_outerjoin_info(JOIN *join)
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
-    if (tab->is_order_nest)
+    if (tab->is_sort_nest)
       continue;
     TABLE *table= tab->table;
     TABLE_LIST *tbl= table->pos_in_table_list;
@@ -11441,15 +11441,15 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     table_map current_map;
     i= join->const_tables;
     Item *saved_cond= cond;
-    NEST_INFO *order_nest_info= join->order_nest_info;
+    SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
     if (join->sort_nest_needed())
-      cond= order_nest_info->nest_cond;
+      cond= sort_nest_info->nest_cond;
 
     for (tab= first_depth_first_tab(join); tab;
          tab= next_depth_first_tab(join, tab))
     {
       bool is_hj;
-      if (tab->is_order_nest)
+      if (tab->is_sort_nest)
       {
         cond= saved_cond;
         continue;
@@ -12464,7 +12464,7 @@ end_nest_materialization(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
   int error;
   THD *thd= join->thd;
-  NEST_INFO *nest_info= join->order_nest_info;
+  SORT_NEST_INFO *nest_info= join->sort_nest_info;
   DBUG_ENTER("end_sj_materialize");
   if (!end_of_records)
   {
@@ -12911,7 +12911,7 @@ restart:
     */
     prev_tab= tab - 1;
     if (tab == join->join_tab + join->const_tables ||
-        (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab) || tab->is_order_nest)
+        (tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab) || tab->is_sort_nest)
       prev_tab= NULL;
 
     switch (tab->type) {
@@ -12940,7 +12940,7 @@ restart:
     default:
       tab->used_join_cache_level= 0;
     }
-    if (!tab->bush_children && !tab->is_order_nest)
+    if (!tab->bush_children && !tab->is_sort_nest)
       idx++;
   }
 }
@@ -13084,19 +13084,19 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     */
 
     if ((tab->bush_root_tab && tab->bush_root_tab->bush_children->start == tab) ||
-        tab->is_order_nest)
+        tab->is_sort_nest)
       prev_tab= NULL;
     DBUG_ASSERT(tab->bush_children || tab->table == join->best_positions[i].table->table
-                || tab->is_order_nest);
+                || tab->is_sort_nest);
 
     tab->partial_join_cardinality= join->best_positions[i].records_read *
                                    (prev_tab? prev_tab->partial_join_cardinality : 1);
-    if (!tab->bush_children && !tab->is_order_nest)
+    if (!tab->bush_children && !tab->is_sort_nest)
       i++;
   }
  
   check_join_cache_usage_for_tables(join, options, no_jbuf_after);
-  NEST_INFO *order_nest_info= join->order_nest_info;
+  SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
   
   JOIN_TAB *first_tab;
   for (tab= first_tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -13124,7 +13124,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     */
     if (!(tab->bush_root_tab && 
           tab->bush_root_tab->bush_children->end == tab + 1) &&
-        !(order_nest_info && tab+1 == order_nest_info->nest_tab))
+        !(sort_nest_info && tab+1 == sort_nest_info->nest_tab))
     {
       tab->next_select=sub_select;		/* normal select */
     }
@@ -13314,7 +13314,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
         It could be that sort_by_tab==NULL, and the plan is to use filesort()
         on the first table.
       */
-      if (join->order && !join->order_nest_info)
+      if (join->order && !join->sort_nest_info)
       {
         join->simple_order= 0;
         join->need_tmp= 1;
@@ -14067,7 +14067,7 @@ static void update_depend_map(JOIN *join)
        join_tab;
        join_tab= next_linear_tab(join, join_tab, WITH_BUSH_ROOTS))
   {
-    if (join_tab->is_order_nest)
+    if (join_tab->is_sort_nest)
       continue;
     TABLE_REF *ref= &join_tab->ref;
     table_map depend_map=0;
@@ -14473,12 +14473,12 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
     sort nest has only one table
   */
   DBUG_ASSERT(join->sort_nest_needed());
-  NEST_INFO* order_nest_info= join->order_nest_info;
+  SORT_NEST_INFO* sort_nest_info= join->sort_nest_info;
   THD *thd= join->thd;
   Field_iterator_table field_iterator;
 
   JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j;
-  order_nest_info->nest_tables_map= 0;
+  sort_nest_info->nest_tables_map= 0;
 
   /* This needs to be added to JOIN  structure, looks the best option or we
      can have a seperate struture NEST_INFO to hold it.
@@ -14490,7 +14490,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   {
     TABLE *table= j->table;
     field_iterator.set_table(table);
-    order_nest_info->nest_tables_map|= table->map;
+    sort_nest_info->nest_tables_map|= table->map;
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
       Field *field= field_iterator.field();
@@ -14499,11 +14499,11 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         return TRUE;
-      order_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+      sort_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
     }
   }
 
-  uint non_order_fields= order_nest_info->nest_base_table_cols.elements;
+  uint non_order_fields= sort_nest_info->nest_base_table_cols.elements;
   ORDER *order= join->order;
 
   /*
@@ -14513,19 +14513,19 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   for (order= join->order; order; order=order->next)
   {
     Item *item= order->item[0];
-    order_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+    sort_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
   }
 
   DBUG_ASSERT(!tab->table);
 
-  order_nest_info->tmp_table_param.init();
-  order_nest_info->tmp_table_param.bit_fields_as_long= TRUE;
-  order_nest_info->tmp_table_param.field_count= order_nest_info->nest_base_table_cols.elements;
-  order_nest_info->tmp_table_param.force_not_null_cols= FALSE;
+  sort_nest_info->tmp_table_param.init();
+  sort_nest_info->tmp_table_param.bit_fields_as_long= TRUE;
+  sort_nest_info->tmp_table_param.field_count= sort_nest_info->nest_base_table_cols.elements;
+  sort_nest_info->tmp_table_param.force_not_null_cols= FALSE;
 
   const LEX_CSTRING order_nest_name= { STRING_WITH_LEN("order-nest") };
-  if (!(tab->table= create_tmp_table(thd, &order_nest_info->tmp_table_param,
-                                     order_nest_info->nest_base_table_cols, (ORDER*) 0,
+  if (!(tab->table= create_tmp_table(thd, &sort_nest_info->tmp_table_param,
+                                     sort_nest_info->nest_base_table_cols, (ORDER*) 0,
                                      FALSE /* distinct */,
                                      0, /*save_sum_fields*/
                                      thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS,
@@ -14533,8 +14533,8 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
                                      &order_nest_name)))
     return TRUE; /* purecov: inspected */
 
-  tab->table->map= order_nest_info->nest_tables_map;
-  order_nest_info->table= tab->table;
+  tab->table->map= sort_nest_info->nest_tables_map;
+  sort_nest_info->table= tab->table;
   tab->type= JT_ALL;
 
   /*
@@ -14548,13 +14548,13 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
     Item *item;
     if (!(item= new (thd->mem_root)Item_temptable_field(thd, field)))
       return TRUE;
-    order_nest_info->nest_temp_table_cols.push_back(item, thd->mem_root);
+    sort_nest_info->nest_temp_table_cols.push_back(item, thd->mem_root);
   }
 
   /*
     Here we substitute order by items with the items of the temp table
   */
-  List_iterator_fast<Item> it(order_nest_info->nest_temp_table_cols);
+  List_iterator_fast<Item> it(sort_nest_info->nest_temp_table_cols);
   Item *item;
   order= join->order;
   uint i=0;
@@ -14579,7 +14579,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
   tab->read_first_record= join_init_read_record;
   tab->read_record.read_record_func= rr_sequential;
   tab[-1].next_select= end_nest_materialization;
-  order_nest_info->materialized= FALSE;
+  sort_nest_info->materialized= FALSE;
 
   return FALSE;
 }
@@ -20264,8 +20264,8 @@ do_select(JOIN *join, Procedure *procedure)
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
-    NEST_INFO *order_nest_info= join->order_nest_info;
-    join_tab= order_nest_info ? order_nest_info->nest_tab
+    SORT_NEST_INFO *sort_nest_info= join->sort_nest_info;
+    join_tab= sort_nest_info ? sort_nest_info->nest_tab
                               : join_tab;
 
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())
@@ -26498,7 +26498,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
     eta->table_name.copy(table_name_buffer, len, cs);
   }
-  else if (is_order_nest)
+  else if (is_sort_nest)
   {
     size_t len= my_snprintf(table_name_buffer,
                          sizeof(table_name_buffer)-1,

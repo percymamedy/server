@@ -529,7 +529,7 @@ typedef struct st_join_table {
     Set to true if we consider creating a nest for a prefix of the JOIN order
     that satisfies the ordering
   */
-  bool is_order_nest;
+  bool is_sort_nest;
 
   void build_range_rowid_filter_if_needed();
 
@@ -999,7 +999,7 @@ typedef struct st_position
   Range_rowid_filter_cost_info *range_rowid_filter_info;
 
   /* Flag to be set to TRUE if the join prefix satisfies the ORDER BY CLAUSE */
-  bool ordering_achieved;
+  bool sort_nest_operation_here;
 
 } POSITION;
 
@@ -1516,7 +1516,7 @@ public:
     the optimize_cond() call in JOIN::optimize_inner() method.
   */
   bool is_orig_degenerated;
-  NEST_INFO *order_nest_info;
+  SORT_NEST_INFO *sort_nest_info;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1613,7 +1613,7 @@ public:
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
     is_orig_degenerated= false;
-    order_nest_info= NULL;
+    sort_nest_info= NULL;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -1622,8 +1622,8 @@ public:
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
 
   /* TRUE if the sort-nest contains more than one table else FALSE */
-  bool sort_nest_needed() { return order_nest_info ?
-                                   (order_nest_info->n_tables == 1 ? FALSE : TRUE):
+  bool sort_nest_needed() { return sort_nest_info ?
+                                   (sort_nest_info->n_tables == 1 ? FALSE : TRUE):
                                    FALSE; }
 
   /*
@@ -1739,7 +1739,7 @@ public:
   {
     return (need_tmp || !sort_by_table || skip_sort_order ||
             ((group || tmp_table_param.sum_func_count) && !group_list) ||
-            order_nest_info) ?
+            sort_nest_info) ?
               NULL : join_tab+const_tables;
   }
   bool setup_subquery_caches();
@@ -1766,7 +1766,7 @@ public:
   bool test_if_need_tmp_table()
   {
     return ((const_tables != table_count &&
-	    ((select_distinct || (!simple_order && !order_nest_info) || !simple_group) ||
+	    ((select_distinct || (!simple_order && !sort_nest_info) || !simple_group) ||
 	     (group_list && order) ||
              MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct));

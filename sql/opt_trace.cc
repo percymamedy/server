@@ -606,7 +606,7 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
       add_str(table_name_buffer, len);
     }
-    else if (tab->is_order_nest)
+    else if (tab->is_sort_nest)
     {
       size_t len= my_snprintf(table_name_buffer,
                            sizeof(table_name_buffer)-1,
