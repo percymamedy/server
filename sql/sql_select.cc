@@ -2487,22 +2487,9 @@ int JOIN::optimize_stage2()
   error= -1;					/* if goto err */
 
   /* Optimize distinct away if possible */
-  {
-    ORDER *org_order= order;
-    order=remove_const(this, order,conds,1, &simple_order);
-    if (unlikely(thd->is_error()))
-    {
-      error= 1;
-      DBUG_RETURN(1);
-    }
+  if (remove_const_from_order_by())
+    DBUG_RETURN(TRUE);
 
-    /*
-      If we are using ORDER BY NULL or ORDER BY const_expression,
-      return result in any order (even if we are using a GROUP BY)
-    */
-    if (!order && org_order)
-      skip_sort_order= 1;
-  }
   /*
      Check if we can optimize away GROUP BY/DISTINCT.
      We can do that if there are no aggregate functions, the
@@ -5378,8 +5365,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                                          join->select_lex->leaf_tables,
                                          join->const_table_map);
 
-  (void)propagate_equal_field_for_orderby(join, join->order);
-
   /* 
     Update info on indexes that can be used for search lookups as
     reading const tables may has added new sargable predicates. 
@@ -5614,12 +5599,22 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (pull_out_semijoin_tables(join))
     DBUG_RETURN(TRUE);
 
-  join->join_tab=stat;
   join->top_join_tab_count= table_count;
-  join->map2table=stat_ref;
-  join->table= table_vector;
   join->const_tables=const_count;
   join->found_const_table_map=found_const_table_map;
+  /*
+    Here a call is made to remove the constant from the order by clause,
+    this call would only remove the basic constants. This is done for
+    the ORDER BY LIMIT optimization.
+  */
+  if (join->remove_const_from_order_by())
+    DBUG_RETURN(TRUE);
+
+  (void)propagate_equal_field_for_orderby(join, join->order);
+
+  join->join_tab=stat;
+  join->map2table=stat_ref;
+  join->table= table_vector;
 
   if (join->const_tables != join->table_count)
     optimize_keyuse(join, keyuse_array);
@@ -14356,6 +14351,22 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 #endif
   DBUG_PRINT("exit",("simple_order: %d",(int) *simple_order));
   DBUG_RETURN(first_order);
+}
+
+
+bool JOIN::remove_const_from_order_by()
+{
+  ORDER *org_order= order;
+  order=remove_const(this, order,conds,1, &simple_order);
+  if (unlikely(thd->is_error()))
+    return TRUE;
+  /*
+    If we are using ORDER BY NULL or ORDER BY const_expression,
+    return result in any order (even if we are using a GROUP BY)
+  */
+  if (!order && org_order)
+    skip_sort_order= 1;
+  return FALSE;
 }
 
 

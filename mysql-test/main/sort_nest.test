@@ -84,5 +84,21 @@ eval explain $query;
 eval explain format=json $query;
 eval $query;
 
+--echo #
+--echo # Removing constant from the order by clause
+--echo #
+
+let $query=
+select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by t2.a limit 4;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
+let $query=
+select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by 1+2,t2.a limit 4;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
 drop table t1,t2,t3,ten,one_k;
 drop function f1;

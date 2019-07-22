@@ -252,5 +252,80 @@ a	b	a	b	a	b
 0	0	1	1	0	0
 0	0	1	1	1	1
 0	0	1	1	0	0
+#
+# Removing constant from the order by clause
+#
+explain select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by t2.a limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+explain format=json select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by t2.a limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t2.a",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 100,
+          "attached_condition": "t1.a > 95"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.a = t1.a"
+    }
+  }
+}
+select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by t2.a limit 4;
+a	b	a	b
+96	96	96	96
+97	97	97	97
+98	98	98	98
+99	99	99	99
+explain select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by 1+2,t2.a limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where
+explain format=json select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by 1+2,t2.a limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t2.a",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 100,
+          "filtered": 100,
+          "attached_condition": "t1.a > 95"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 102,
+      "filtered": 100,
+      "attached_condition": "t2.a = t1.a"
+    }
+  }
+}
+select * from t1,t2 where t1.a > 95  and t1.a=t2.a order by 1+2,t2.a limit 4;
+a	b	a	b
+96	96	96	96
+97	97	97	97
+98	98	98	98
+99	99	99	99
 drop table t1,t2,t3,ten,one_k;
 drop function f1;

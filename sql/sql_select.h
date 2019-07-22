@@ -1810,6 +1810,7 @@ public:
   bool fix_all_splittings_in_plan();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+  bool remove_const_from_order_by();
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
