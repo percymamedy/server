@@ -343,8 +343,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_init_update);
 
-  const bool truncate_history= table_list->vers_conditions.delete_history;
-  DBUG_ASSERT(!(truncate_history && table_list->period_conditions.is_set()));
+  const bool delete_history= table_list->vers_conditions.delete_history;
+  DBUG_ASSERT(!(delete_history && table_list->period_conditions.is_set()));
 
   if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
@@ -722,7 +722,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     while (!(error=info.read_record()) && !thd->killed &&
           ! thd->is_error())
     {
-      if (record_should_be_deleted(thd, table, select, explain, truncate_history))
+      if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
         if (unlikely((error=
@@ -771,10 +771,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     if (delete_while_scanning)
       delete_record= record_should_be_deleted(thd, table, select, explain,
-                                              truncate_history);
+                                              delete_history);
     if (delete_record)
     {
-      if (!truncate_history && table->triggers &&
+      if (!delete_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
       {
@@ -810,7 +810,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (likely(!error))
       {
 	deleted++;
-        if (!truncate_history && table->triggers &&
+        if (!delete_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
         {
