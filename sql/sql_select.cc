@@ -14419,10 +14419,8 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
 void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order)
 {
   ORDER *order;
-  table_map not_const_tables= ~join->const_table_map;
   for (order= first_order; order; order= order->next)
   {
-    table_map order_tables=order->item[0]->used_tables();
     if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
         join->cond_equal)
     {
@@ -14451,7 +14449,6 @@ bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
                                          table_map previous_tables)
 {
   ORDER *order;
-  table_map not_const_tables= ~join->const_table_map;
   for (order= join->order; order; order= order->next)
   {
     Item *order_item= order->item[0];
