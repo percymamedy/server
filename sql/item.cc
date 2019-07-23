@@ -9083,7 +9083,7 @@ Item *Item_direct_view_ref::replace_equal_field(THD *thd, uchar *arg)
 
 bool Item_field::excl_dep_on_table(table_map tab_map)
 {
-  return used_tables() == tab_map ||
+  return !(used_tables() & ~tab_map) ||
          (item_equal && (item_equal->used_tables() & tab_map));
 }
 

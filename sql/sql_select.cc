@@ -2474,6 +2474,8 @@ int JOIN::optimize_stage2()
   if (setup_semijoin_loosescan(this))
     DBUG_RETURN(1);
 
+  if (setup_sort_nest(this))
+    DBUG_RETURN(1);
   substitute_base_to_nest_items(this);
 
   if (make_join_select(this, select, conds))
@@ -11241,17 +11243,6 @@ make_outerjoin_info(JOIN *join)
         DBUG_RETURN(TRUE);
       tab->table->reginfo.join_tab= tab;
     }
-
-    /*
-      maybe setup order nest here, we want the sj materialization fields, so we get them
-      after the call to setup_sj_materialization_part1
-    */
-    if (tab->is_sort_nest)
-    {
-      if (setup_order_nest(join, tab))
-        DBUG_RETURN(TRUE);
-      tab->table->reginfo.join_tab= tab;
-    }
   }
 
   for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
@@ -14412,8 +14403,18 @@ ORDER *simple_remove_const(ORDER *order, COND *where)
 
 /*
   This function basically tries to propgate all the multiple equalites
-  for the Field items, so that one can use them to generate QEP that would
-  also take into consideration equality propagation
+  for the order by items, so that one can use them to generate QEP that would
+  also take into consideration equality propagation.
+  Example
+    select * from t1,t2 where t1.a=t2.a order by t1.a
+
+  So the possible join orders would be:
+
+  t1 join t2 then sort
+  t2 join t1 then sort
+  t1 sort(t1) join t2
+  t2 sort(t2) join t1 => this is only possible when equality propagation is
+                         performed
 */
 void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order)
 {
@@ -14422,33 +14423,27 @@ void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order)
   for (order= first_order; order; order= order->next)
   {
     table_map order_tables=order->item[0]->used_tables();
-    if (!(order_tables & not_const_tables))
-      continue;
-    else
+    if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
+        join->cond_equal)
     {
-      if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
-          order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
-          join->cond_equal)
-      {
-        Item *item= order->item[0];
-        /*
-          TODO: equality substitution in the context of ORDER BY is
-          sometimes allowed when it is not allowed in the general case.
-          We make the below call for its side effect: it will locate the
-          multiple equality the item belongs to and set item->item_equal
-          accordingly.
-        */
-        (void)item->propagate_equal_fields(join->thd,
-                                           Value_source::
-                                           Context_identity(),
-                                           join->cond_equal);
-      }
+      Item *item= order->item[0];
+      /*
+        TODO: equality substitution in the context of ORDER BY is
+        sometimes allowed when it is not allowed in the general case.
+        We make the below call for its side effect: it will locate the
+        multiple equality the item belongs to and set item->item_equal
+        accordingly.
+      */
+      (void)item->propagate_equal_fields(join->thd,
+                                         Value_source::
+                                         Context_identity(),
+                                         join->cond_equal);
     }
   }
 }
 
 /*
-  This function basicall checks if by considering the current join_tab
+  This function checks if by considering the current join_tab
   would we be able to achieve the ordering
 */
 
@@ -14459,36 +14454,34 @@ bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
   table_map not_const_tables= ~join->const_table_map;
   for (order= join->order; order; order= order->next)
   {
-    table_map order_tables=order->item[0]->used_tables();
-    if (!(order_tables & not_const_tables))
+    Item *order_item= order->item[0];
+    table_map order_tables=order_item->used_tables();
+    if (!(order_tables & ~previous_tables) ||
+         (order_item->excl_dep_on_table(previous_tables | tab->table->map)))
       continue;
     else
-    {
-      Item_equal *item_eq= order->item[0]->get_item_equal();
-      if (((previous_tables | tab->table->map) & order_tables) == order_tables ||
-          (item_eq && (item_eq->used_tables() & (previous_tables | tab->table->map))))
-        continue;
-      else
-        return FALSE;
-    }
+      return FALSE;
   }
   return TRUE;
 }
 
 
-bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
+bool setup_sort_nest(JOIN *join)
 {
+  if (!join->sort_nest_needed())
+    return FALSE;
+
   /*
     The sort nest is only needed when there are more than one table
     in the sort nest, else we can just sort with the first table if the
     sort nest has only one table
   */
-  DBUG_ASSERT(join->sort_nest_needed());
   SORT_NEST_INFO* sort_nest_info= join->sort_nest_info;
   THD *thd= join->thd;
   Field_iterator_table field_iterator;
 
-  JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j;
+  JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j, *tab;
+  tab= sort_nest_info->nest_tab;
   sort_nest_info->nest_tables_map= 0;
 
   /* This needs to be added to JOIN  structure, looks the best option or we
@@ -14576,6 +14569,7 @@ bool setup_order_nest(JOIN *join, JOIN_TAB *tab)
     order->item[0]= item;
     order= order->next;
   }
+  tab->table->reginfo.join_tab= tab;
 
   /*
     Create mapping between base table to temp table

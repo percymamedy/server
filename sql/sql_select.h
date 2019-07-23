@@ -2129,7 +2129,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
 void propagate_equal_field_for_orderby(JOIN *join, ORDER *first_order);
 bool check_join_prefix_contains_ordering(JOIN *join, JOIN_TAB *tab,
                                          table_map previous_tables);
-bool setup_order_nest(JOIN *join, JOIN_TAB *tab);
+bool setup_sort_nest(JOIN *join);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field
