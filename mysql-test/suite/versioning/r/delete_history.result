@@ -140,5 +140,17 @@ delete history from t;
 select count(*) - 1 as hist_partitions from information_schema.partitions where table_name = 't' and table_schema = 'test';
 hist_partitions
 1
+#
+# MDEV-19814 Assertion `update->n_fields < ulint(table->n_cols + table->n_v_cols)' on DELETE HISTORY
+#
+create or replace table t1 (
+f varchar(1),
+row_start SYS_TYPE as row start,
+row_end SYS_TYPE as row end,
+period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 (f) values ('a'), ('b'), ('c'), ('d'), ('e'), ('f'), ('g'), ('h');
+delete from t1;
+delete history from t1;
 drop database test;
 create database test;
