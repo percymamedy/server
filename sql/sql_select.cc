@@ -14517,7 +14517,11 @@ bool setup_sort_nest(JOIN *join)
   for (order= join->order; order; order=order->next)
   {
     Item *item= order->item[0];
-    sort_nest_info->nest_base_table_cols.push_back(item, thd->mem_root);
+    Item *res= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB, item,
+                                               join->cond_equal,
+                                               join->map2table, true);
+    res->update_used_tables();
+    sort_nest_info->nest_base_table_cols.push_back(res, thd->mem_root);
   }
 
   DBUG_ASSERT(!tab->table);

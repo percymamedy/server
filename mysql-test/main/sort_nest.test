@@ -100,5 +100,35 @@ eval explain $query;
 eval explain format=json $query;
 eval $query;
 
+
+--echo #
+--echo # Equality propagation, both the queries should use a sort nest on {t1,t2}
+--echo #
+
+let $query=select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.b=t3.b
+order by t1.b desc, t2.a desc limit 3;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
+let $query=select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.b=t3.b
+order by t3.b desc, t2.a desc limit 3;
+
+eval explain $query;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+eval explain format=json $query;
+eval $query;
+
+--echo #
+--echo # Equality propagation also for arguments of expressions, 
+--echo # the plan should use a sort nest on {t1,t2}
+--echo #
+
+let $query=select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.b=t3.b
+order by t3.b+1 desc, t2.a desc limit 3;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
 drop table t1,t2,t3,ten,one_k;
 drop function f1;
