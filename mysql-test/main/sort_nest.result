@@ -78,7 +78,7 @@ explain select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a or
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain format=json select * from t1,t2,t3 where t1.a > 95 and  t1.a=t2.a and t1.b = t3.a order by t2.b;
 EXPLAIN
@@ -110,7 +110,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -137,7 +137,7 @@ order by t1.a, t2.b limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain format=json select * from t1,t2,t3 where (t3.a<2 and  t2.a <2) or (t1.b > 98 and t3.b > 98)
 order by t1.a, t2.b limit 5;
@@ -169,7 +169,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -199,7 +199,7 @@ order by t1.a,t2.b limit 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain format=json select * from t1,t2,t3 where (t3.a<2  and t2.a <2) or (f1(t1.b) > 98 and t3.b > 98)
 order by t1.a,t2.b limit 5;
@@ -230,7 +230,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -335,7 +335,7 @@ order by t1.b desc, t2.a desc limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain format=json select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.b=t3.b
 order by t1.b desc, t2.a desc limit 3;
@@ -366,7 +366,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -391,7 +391,7 @@ order by t3.b desc, t2.a desc limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
@@ -424,7 +424,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -453,7 +453,7 @@ order by t3.b+1 desc, t2.a desc limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	Using join buffer (flat, BNL join)
-1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	102	Using filesort
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	10200	Using filesort
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain format=json select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.b=t3.b
 order by t3.b+1 desc, t2.a desc limit 3;
@@ -484,7 +484,7 @@ EXPLAIN
         "table": {
           "table_name": "<order-nest>",
           "access_type": "ALL",
-          "rows": 102,
+          "rows": 10200,
           "filtered": 100
         }
       }
@@ -504,5 +504,21 @@ b	a	b	a
 99	99	99	99
 99	98	99	99
 99	97	99	99
+#
+# Rows for the sort-nest should be the cardinality of the join of inner tables
+# of the sort-nest
+#
+# Rows for sort nest would be 9894 here
+alter table t1 add key(a);
+explain extended select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.a > 5 and t1.b=t3.b
+order by t1.b desc, t2.a desc limit 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	97.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	102	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	<order-nest>	ALL	NULL	NULL	NULL	NULL	9894	100.00	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t3`.`b` AS `b`,`order-nest`.`a` AS `a`,`order-nest`.`b` AS `b`,`order-nest`.`a` AS `a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `order-nest`.`b` order by `order-nest`.`b` desc,`order-nest`.`a` desc limit 3
+alter table t1 drop key a;
 drop table t1,t2,t3,ten,one_k;
 drop function f1;

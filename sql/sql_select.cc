@@ -10536,7 +10536,8 @@ bool JOIN::get_best_combination()
         j->ref.key = -1;
         j->on_expr_ref= (Item**) &null_ptr;
         j->is_sort_nest= TRUE;
-        j->records_read= prev->records_read * prev->cond_selectivity;
+        uint tables= prev - (join_tab + const_tables)+1;
+        j->records_read= calculate_record_count_for_sort_nest(this, tables);
         j->records= (ha_rows) j->records_read;
         j->cond_selectivity= 1.0;
       }
@@ -29128,6 +29129,19 @@ double postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len, uint
           join_record_count * log2 (join_record_count)) *
          SORT_INDEX_CMP_COST;             // cost to perform  sorting
   return cost;
+}
+
+
+double calculate_record_count_for_sort_nest(JOIN *join, uint n_tables)
+{
+  double sort_nest_records=1, record_count;
+  JOIN_TAB *tab= join->join_tab + join->const_tables;
+  for (uint j= 0; j < n_tables ;j++, tab++)
+  {
+    record_count= tab->records_read * tab->cond_selectivity;
+    sort_nest_records= COST_MULT(sort_nest_records, record_count);
+  }
+  return sort_nest_records;
 }
 
 

@@ -1881,6 +1881,7 @@ bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);
 bool simple_pred(Item_func *func_item, Item **args, bool *inv_order);
 int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
+double calculate_record_count_for_sort_nest(JOIN *join, uint n_tables);
 
 /* from sql_delete.cc, used by opt_range.cc */
 extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);

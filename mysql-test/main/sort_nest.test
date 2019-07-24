@@ -130,5 +130,16 @@ eval explain $query;
 eval explain format=json $query;
 eval $query;
 
+--echo #
+--echo # Rows for the sort-nest should be the cardinality of the join of inner tables
+--echo # of the sort-nest
+--echo #
+
+--echo # Rows for sort nest would be 9894 here
+alter table t1 add key(a);
+let $query=select t3.b, t2.a , t1.b , t1.a  from t1,t2,t3 where t1.a > 5 and t1.b=t3.b
+order by t1.b desc, t2.a desc limit 3;
+eval explain extended $query;
+alter table t1 drop key a;
 drop table t1,t2,t3,ten,one_k;
 drop function f1;
