@@ -105,6 +105,7 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
                                     Json_writer_object *trace_object);
 
 void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab);
+void add_sort_nest_tables_to_trace(JOIN *join);
 
 /*
   Security related (need to add a proper comment here)

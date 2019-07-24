@@ -8306,31 +8306,6 @@ choose_plan(JOIN *join, table_map join_tables)
   }
   trace_plan.end();
 
-  /*for (uint tablenr=0;tablenr < join->table_count;tablenr++)
-  {
-    POSITION *pos= &join->best_positions[tablenr];
-    join->order_nest_tables|=  pos->table->table->map;
-    if (pos->sort_nest_operation_here)
-    {
-      join->order_nest= TRUE;
-      break;
-    }
-  }
-
-  if (join->order_nest && unlikely(thd->trace_started()))
-  {
-    Json_writer_array trace_order_nest(thd, "order_nest");
-
-    for (uint tablenr=0;tablenr < join->table_count;tablenr++)
-    {
-      POSITION *pos= &join->best_positions[tablenr];
-      trace_order_nest.add_table_name(pos->table);
-      if (pos->sort_nest_operation_here)
-        break;
-    }
-  }*/
-
-
   /* 
     Store the cost of this query into a user variable
     Don't update last_query_cost for statements that are not "flat joins" :
@@ -14481,6 +14456,9 @@ bool setup_sort_nest(JOIN *join)
   JOIN_TAB *start_tab= join->join_tab+join->const_tables, *j, *tab;
   tab= sort_nest_info->nest_tab;
   sort_nest_info->nest_tables_map= 0;
+
+  if (unlikely(thd->trace_started()))
+    add_sort_nest_tables_to_trace(join);
 
   /* This needs to be added to JOIN  structure, looks the best option or we
      can have a seperate struture NEST_INFO to hold it.
