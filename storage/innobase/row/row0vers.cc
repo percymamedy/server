@@ -463,6 +463,7 @@ row_vers_build_clust_v_col(
 				       &record,
 				       &vcol_storage);
 
+
 	if (vcol_info && !vcol_info->table()) {
 		vcol_info->set_table(maria_table);
 		goto func_exit;

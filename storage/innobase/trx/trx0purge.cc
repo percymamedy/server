@@ -41,6 +41,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
+#include "debug_sync.h"
 #include <mysql/service_wsrep.h>
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
@@ -176,6 +177,9 @@ void purge_sys_t::create()
   rw_lock_create(trx_purge_latch_key, &latch, SYNC_PURGE_LATCH);
   mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
   undo_trunc.create();
+#ifdef UNIV_DEBUG
+  UT_LIST_INIT(debug_sync, &debug_sync_t::debug_sync_list);
+#endif
 }
 
 /** Close the purge subsystem on shutdown. */
@@ -1581,6 +1585,23 @@ trx_purge(
 	if (srv_purge_view_update_only_debug) {
 		return(0);
 	}
+
+	rw_lock_x_lock(&purge_sys.latch);
+	for (purge_sys_t::debug_sync_t *next_sync,
+			*sync = UT_LIST_GET_FIRST(purge_sys.debug_sync);
+			sync != NULL;
+			sync = next_sync) {
+		if (debug_sync_set_action(current_thd, sync->str,
+					  strlen(sync->str))) {
+			ib::error() << thd_get_error_message(current_thd);
+			DBUG_ABORT();
+		}
+
+		next_sync = UT_LIST_GET_NEXT(debug_sync_list, sync);
+		UT_LIST_REMOVE(purge_sys.debug_sync, sync);
+		ut_free(sync);
+	}
+	rw_lock_x_unlock(&purge_sys.latch);
 #endif /* UNIV_DEBUG */
 
 	/* Fetch the UNDO recs that need to be purged. */
