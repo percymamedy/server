@@ -8,8 +8,6 @@
 --let $datadir= `select @@datadir`
 set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
 set global innodb_purge_rseg_truncate_frequency= 1;
-set @saved_dbug= @@global.debug_dbug;
-set global debug_dbug= "+d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
 
 create table t1 (
   pk serial, vb tinyblob as (b) virtual, b tinyblob,
@@ -18,11 +16,15 @@ engine innodb;
 
 insert ignore into t1 (b) values ('foo');
 
+set global innodb_debug_sync = "ib_purge_virtual_latch_released SIGNAL latch_released WAIT_FOR drop_started";
+set global innodb_debug_sync = "ib_purge_virtual_got_no_such_table SIGNAL got_no_such_table";
+
 select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 
 set debug_sync= "now WAIT_FOR latch_released";
-set global debug_dbug= "-d,ib_purge_virtual_mdev_16222_1";
+set global innodb_debug_sync= "ib_purge_virtual_latch_released";
+set debug_sync= "rm_table_drop_started SIGNAL drop_started";
 drop table t1;
 --remove_file $datadir/test/load.data
 
@@ -43,7 +45,7 @@ set debug_sync= "now WAIT_FOR got_no_such_table";
 # 1. purge thread goes into sending got_no_such_table
 # 2. test thread finishes debug_sync= "RESET" below
 # 3. purge thread sends got_no_such_table
-set global debug_dbug= @saved_dbug;
+set global innodb_debug_sync= "RESET";
 
 # cleanup
 drop table t1;

@@ -2118,10 +2118,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     }
   }
 
-  DBUG_EXECUTE_IF("ib_purge_virtual_mdev_16222_1",
-                  DBUG_ASSERT(!debug_sync_set_action(
-                                thd,
-                                STRING_WITH_LEN("now SIGNAL drop_started"))););
+  DEBUG_SYNC(thd, "rm_table_drop_started");
 
   /* mark for close and remove all cached entries */
   thd->push_internal_handler(&err_handler);

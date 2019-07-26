@@ -20676,20 +20676,6 @@ fail:
 for purge thread */
 static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_1",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_latch_released "
-					    "SIGNAL latch_released "
-					    "WAIT_FOR drop_started"))););
-	DBUG_EXECUTE_IF(
-		"ib_purge_virtual_mdev_16222_2",
-		DBUG_ASSERT(!debug_sync_set_action(
-			    thd,
-			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
-					    "SIGNAL got_no_such_table"))););
-
 	if (THDVAR(thd, background_thread)) {
 		/* Purge thread acquires dict_operation_lock while
 		processing undo log record. Release the dict_operation_lock
