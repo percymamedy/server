@@ -522,3 +522,162 @@ Note	1003	select `test`.`t3`.`b` AS `b`,`order-nest`.`a` AS `a`,`order-nest`.`b`
 alter table t1 drop key a;
 drop table t1,t2,t3,ten,one_k;
 drop function f1;
+#
+# Non merged semi-join
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int);
+insert into t1 select a,a from t0 where a <5;
+create table t2 as select * from t1 where a < 5;
+create table t3(a int, b int);
+insert into t3 select (A.a + 10*B.a+C.a*100) as a, (A.a + 10*B.a+C.a*100) as b from t0 A, t0 B,t0 C;
+<subquery2> outside the sort-nest
+explain select * from t2,t1 where t1.a in (select max(t3.a) from t3 group by t3.b) order by t2.a,t1.a limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+1	PRIMARY	<order-nest>	ALL	NULL	NULL	NULL	NULL	25	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	order-nest.a	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	1000	Using temporary
+explain format=json select * from t2,t1 where t1.a in (select max(t3.a) from t3 group by t3.b) order by t2.a,t1.a limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 5,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 5,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "119",
+      "join_type": "BNL"
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`order-nest`.a, `order-nest`.a",
+        "table": {
+          "table_name": "<order-nest>",
+          "access_type": "ALL",
+          "rows": 25,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["max(t3.a)"],
+      "ref": ["order-nest.a"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 1000,
+              "filtered": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}
+select * from t2,t1 where t1.a in (select max(t3.a) from t3 group by t3.b) order by t2.a,t1.a limit 5;
+a	b	a	b
+0	0	0	0
+0	0	1	1
+0	0	2	2
+0	0	3	3
+0	0	4	4
+<subquery2> inside the sort-nest
+alter table t3 add key(b);
+explain select * from t3,t2 where t3.a in (select max(t1.a) from t1 group by t1.b) order by t3.a,t2.a limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+1	PRIMARY	<order-nest>	ALL	NULL	NULL	NULL	NULL	25	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+explain format=json select * from t3,t2 where t3.a in (select max(t1.a) from t1 group by t1.b) order by t3.a,t2.a limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 5,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<subquery2>",
+        "access_type": "ALL",
+        "possible_keys": ["distinct_key"],
+        "rows": 5,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "119",
+      "join_type": "BNL",
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100
+            }
+          }
+        }
+      }
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`order-nest`.`max(t1.a)`, `order-nest`.a",
+        "table": {
+          "table_name": "<order-nest>",
+          "access_type": "ALL",
+          "rows": 25,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 1000,
+      "filtered": 100,
+      "attached_condition": "t3.a = `order-nest`.`max(t1.a)`"
+    }
+  }
+}
+select * from t3,t2 where t3.a in (select max(t1.a) from t1 group by t1.b) order by t3.a,t2.a limit 5;
+a	b	a	b
+0	0	0	0
+0	0	1	1
+0	0	2	2
+0	0	3	3
+0	0	4	4
+drop table t1,t2,t3,t0;

@@ -143,3 +143,33 @@ eval explain extended $query;
 alter table t1 drop key a;
 drop table t1,t2,t3,ten,one_k;
 drop function f1;
+
+--echo #
+--echo # Non merged semi-join
+--echo #
+
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int);
+insert into t1 select a,a from t0 where a <5;  # 10 rows
+create table t2 as select * from t1 where a < 5;  # 10 rows
+create table t3(a int, b int);
+insert into t3 select (A.a + 10*B.a+C.a*100) as a, (A.a + 10*B.a+C.a*100) as b from t0 A, t0 B,t0 C; # 100 rows
+
+--echo <subquery2> outside the sort-nest
+
+let $query= select * from t2,t1 where t1.a in (select max(t3.a) from t3 group by t3.b) order by t2.a,t1.a limit 5;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
+--echo <subquery2> inside the sort-nest
+
+alter table t3 add key(b);
+let $query= select * from t3,t2 where t3.a in (select max(t1.a) from t1 group by t1.b) order by t3.a,t2.a limit 5;
+eval explain $query;
+eval explain format=json $query;
+eval $query;
+
+drop table t1,t2,t3,t0;
