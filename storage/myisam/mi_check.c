@@ -4694,7 +4694,7 @@ static my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
  */
 
 void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
-                                    my_bool all_keys)
+                                    my_bool all_keys, ulonglong hash_key_map)
 {
   MYISAM_SHARE *share=info->s;
   MI_KEYDEF    *key=share->keyinfo;
@@ -4706,7 +4706,8 @@ void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
   {
     if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY)) &&
         ! mi_too_big_key_for_sort(key,rows) && info->s->base.auto_key != i+1 &&
-        (all_keys || !(key->flag & HA_NOSAME))) 
+        (all_keys || !(key->flag & HA_NOSAME)) &&
+        !mi_is_key_active(hash_key_map, i))
     {
       mi_clear_key_active(share->state.key_map, i);
       info->update|= HA_STATE_CHANGED;

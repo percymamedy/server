@@ -1749,7 +1749,16 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     else
     {
       my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
-      mi_disable_indexes_for_rebuild(file, rows, all_keys);
+      if (table->s->long_unique_table)
+      {
+        ulonglong hash_key_map= 0ULL;
+        for(uint i= 0; i < table->s->keys; i++)
+          if (table->key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
+            mi_set_key_active(hash_key_map, i);
+        mi_disable_indexes_for_rebuild(file, rows, all_keys, hash_key_map);
+      }
+      else
+        mi_disable_indexes_for_rebuild(file, rows, all_keys, 0ULL);
     }
   }
   else

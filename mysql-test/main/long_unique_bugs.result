@@ -265,3 +265,6 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
 DROP TABLE t1, t2;
+create table t1(a int, unique(a) using hash);
+#BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
+drop table t1;
