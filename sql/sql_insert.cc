@@ -2623,6 +2623,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
   {
+    table->setup_keyinfo_hash_all();
     bool error_reported= FALSE;
     if (unlikely(parse_vcol_defs(client_thd, client_thd->mem_root, copy,
                                  &error_reported)))

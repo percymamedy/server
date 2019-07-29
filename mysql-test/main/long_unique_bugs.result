@@ -268,3 +268,6 @@ DROP TABLE t1, t2;
 create table t1(a int, unique(a) using hash);
 #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
 drop table t1;
+CREATE  TABLE t1 (a BLOB, UNIQUE(a)) ENGINE=MyISAM;
+INSERT DELAYED t1 () VALUES ();
+DROP TABLE t1;

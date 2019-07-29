@@ -9039,6 +9039,26 @@ void re_setup_keyinfo_hash(KEY *key_info)
                key_info->ext_key_parts= 1;
   key_info->flags&= ~HA_NOSAME;
 }
+
+/*
+  call setup_keyinfo_hash for all keys in table
+ */
+void TABLE::setup_keyinfo_hash_all()
+{
+  for (uint i= 0; i < s->keys; i++)
+    if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
+      setup_keyinfo_hash(&key_info[i]);
+}
+
+/*
+  call re_setup_keyinfo_hash for all keys in table
+ */
+void TABLE::re_setup_keyinfo_hash_all()
+{
+  for (uint i= 0; i < s->keys; i++)
+    if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
+      re_setup_keyinfo_hash(&key_info[i]);
+}
 /**
   @brief clone of current handler.
   Creates a clone of handler used in update for

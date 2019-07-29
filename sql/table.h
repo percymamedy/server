@@ -1596,6 +1596,8 @@ public:
   void vers_update_fields();
   void vers_update_end();
   void find_constraint_correlated_indexes();
+  void setup_keyinfo_hash_all();
+  void re_setup_keyinfo_hash_all();
   void clone_handler_for_update();
   void delete_update_handler();
 
