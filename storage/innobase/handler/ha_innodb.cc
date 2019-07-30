@@ -20621,6 +20621,7 @@ retry_mdl:
 		return NULL;
 	}
 
+	DEBUG_SYNC(thd, "ib_purge_virtual_open_table");
 	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
 						 tbl_buf, tbl_buf_len);
 	if (!mariadb_table)

@@ -1,0 +1,23 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (
+  pk INT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(15) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (b) VALUES
+  (NULL),(b'011'),(b'000110100'),
+  (b'01101101010'),(b'01111001001011'),(NULL);
+
+set global innodb_debug_sync = "ib_clust_v_col_row_allocated SIGNAL row_allocated WAIT_FOR flush_unlock";
+set debug_sync = "after_flush_unlock SIGNAL flush_unlock WAIT_FOR forever TIMEOUT 5";
+
+REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
+
+set debug_sync = "now WAIT_FOR row_allocated";
+FLUSH TABLES;
+
+# Cleanup
+DROP TABLE t1;

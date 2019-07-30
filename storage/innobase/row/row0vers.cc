@@ -468,6 +468,7 @@ row_vers_build_clust_v_col(
 		vcol_info->set_table(maria_table);
 		goto func_exit;
 	}
+	DEBUG_SYNC(current_thd, "ib_clust_v_col_row_allocated");
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t* ind_field = dict_index_get_nth_field(
