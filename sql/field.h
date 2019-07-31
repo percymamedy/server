@@ -643,7 +643,54 @@ public:
      UNSIGNED,
      SIGNESS_NOT_RELEVANT // for non-numeric types
    };
+    /*
+      Binlog stores field->type() as type code by default. For example,
+      it puts MYSQL_TYPE_STRING in case of CHAR, VARCHAR, SET and ENUM,
+      with extra data type details put into metadata.
+
+      Binlog behaviour slightly differs between various MySQL and MariaDB
+      versions for the temporal data types TIME, DATETIME and TIMESTAMP.
+
+      MySQL prior to 5.6 uses MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME 
+      and MYSQL_TYPE_TIMESTAMP type codes in binlog and stores no 
+      additional metadata.
+
+      MariaDB-5.3 implements new versions for TIME, DATATIME, TIMESTAMP
+      with fractional second precision, but uses the old format for the
+      types TIME(0), DATETIME(0), TIMESTAMP(0), and it still stores
+      MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP in binlog,
+      with no additional metadata.
+      So row-based replication between temporal data types of
+      different precision is not possible in MariaDB.
+
+      MySQL-5.6 also implements a new version of TIME, DATETIME, TIMESTAMP
+      which support fractional second precision 0..6, and use the new
+      format even for the types TIME(0), DATETIME(0), TIMESTAMP(0).
+      For these new data types, MySQL-5.6 stores new type codes 
+      MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2, MYSQL_TYPE_TIMESTAMP2 in binlog,
+      with fractional precision 0..6 put into metadata.
+      This makes it in theory possible to do row-based replication between
+      columns of different fractional precision (e.g. from TIME(1) on master
+      to TIME(6) on slave). However, it's not currently fully implemented yet.
+      MySQL-5.6 can only do row-based replication from the old types
+      TIME, DATETIME, TIMESTAMP (represented by MYSQL_TYPE_TIME,
+      MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP type codes in binlog)
+      to the new corresponding types TIME(0), DATETIME(0), TIMESTAMP(0).
+
+      Note: MariaDB starting from the version 10.0 understands the new
+      MySQL-5.6 type codes MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2,
+      MYSQL_TYPE_TIMESTAMP2. When started over MySQL-5.6 tables both on
+      master and on slave, MariaDB-10.0 can also do row-based replication
+      from the old types TIME, DATETIME, TIMESTAMP to the new MySQL-5.6
+      types TIME(0), DATETIME(0), TIMESTAMP(0).
+
+      Note: perhaps binlog should eventually be modified to store
+      real_type() instead of type() for all column types.
+    */
    uchar m_type_code;
+  /**
+     Retrieve the field metadata for fields.
+  */
    uint16 m_metadata;
    uint8 m_metadata_size;
    binlog_signess_t m_signess;
@@ -996,21 +1043,6 @@ public:
   }
   virtual uint row_pack_length() const { return 0; }
 
-
-  /**
-     Retrieve the field metadata for fields.
-
-     This default implementation returns 0 and saves 0 in the first_byte value.
-
-     @param   first_byte   First byte of field metadata
-
-     @returns 0 no bytes written.
-  */
-
-  virtual int save_field_metadata(uchar *first_byte)
-  { return 0; }
-
-
   /*
     data_length() return the "real size" of the data in memory.
   */
@@ -1113,54 +1145,6 @@ public:
   virtual enum_field_types real_type() const
   {
     return type_handler()->real_field_type();
-  }
-  virtual enum_field_types binlog_type() const
-  {
-    /*
-      Binlog stores field->type() as type code by default. For example,
-      it puts MYSQL_TYPE_STRING in case of CHAR, VARCHAR, SET and ENUM,
-      with extra data type details put into metadata.
-
-      Binlog behaviour slightly differs between various MySQL and MariaDB
-      versions for the temporal data types TIME, DATETIME and TIMESTAMP.
-
-      MySQL prior to 5.6 uses MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME 
-      and MYSQL_TYPE_TIMESTAMP type codes in binlog and stores no 
-      additional metadata.
-
-      MariaDB-5.3 implements new versions for TIME, DATATIME, TIMESTAMP
-      with fractional second precision, but uses the old format for the
-      types TIME(0), DATETIME(0), TIMESTAMP(0), and it still stores
-      MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP in binlog,
-      with no additional metadata.
-      So row-based replication between temporal data types of
-      different precision is not possible in MariaDB.
-
-      MySQL-5.6 also implements a new version of TIME, DATETIME, TIMESTAMP
-      which support fractional second precision 0..6, and use the new
-      format even for the types TIME(0), DATETIME(0), TIMESTAMP(0).
-      For these new data types, MySQL-5.6 stores new type codes 
-      MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2, MYSQL_TYPE_TIMESTAMP2 in binlog,
-      with fractional precision 0..6 put into metadata.
-      This makes it in theory possible to do row-based replication between
-      columns of different fractional precision (e.g. from TIME(1) on master
-      to TIME(6) on slave). However, it's not currently fully implemented yet.
-      MySQL-5.6 can only do row-based replication from the old types
-      TIME, DATETIME, TIMESTAMP (represented by MYSQL_TYPE_TIME,
-      MYSQL_TYPE_DATETIME and MYSQL_TYPE_TIMESTAMP type codes in binlog)
-      to the new corresponding types TIME(0), DATETIME(0), TIMESTAMP(0).
-
-      Note: MariaDB starting from the version 10.0 understands the new
-      MySQL-5.6 type codes MYSQL_TYPE_TIME2, MYSQL_TYPE_DATETIME2,
-      MYSQL_TYPE_TIMESTAMP2. When started over MySQL-5.6 tables both on
-      master and on slave, MariaDB-10.0 can also do row-based replication
-      from the old types TIME, DATETIME, TIMESTAMP to the new MySQL-5.6
-      types TIME(0), DATETIME(0), TIMESTAMP(0).
-
-      Note: perhaps binlog should eventually be modified to store
-      real_type() instead of type() for all column types.
-    */
-    return type();
   }
   Binlog_type_info *binlog_type_info_var;
   virtual Binlog_type_info *binlog_type_info()
@@ -2167,8 +2151,6 @@ public:
 
 /* New decimal/numeric field which use fixed point arithmetic */
 class Field_new_decimal :public Field_num {
-private:
-  int save_field_metadata(uchar *first_byte);
 public:
   /* The maximum number of decimal digits can be stored */
   uint precision;
@@ -2665,8 +2647,6 @@ public:
     return 0x1000000ULL;
   }
   Binlog_type_info * binlog_type_info();
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -2731,8 +2711,6 @@ public:
     return 0x20000000000000ULL;
   }
   Binlog_type_info * binlog_type_info();
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3077,11 +3055,6 @@ public:
   TIMESTAMP(0..6) - MySQL56 version
 */
 class Field_timestampf :public Field_timestamp_with_dec {
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
   void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestampf(uchar *ptr_arg,
@@ -3093,7 +3066,6 @@ public:
                              unireg_check_arg, field_name_arg, share, dec_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_timestamp2; }
-  enum_field_types binlog_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param);
@@ -3406,11 +3378,6 @@ public:
 */
 class Field_timef :public Field_time_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
 public:
   Field_timef(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
@@ -3422,7 +3389,6 @@ public:
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
   const Type_handler *type_handler() const { return &type_handler_time2; }
-  enum_field_types binlog_type() const { return MYSQL_TYPE_TIME2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param);
@@ -3583,11 +3549,6 @@ public:
 class Field_datetimef :public Field_datetime_with_dec {
   void store_TIME(const MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate) const;
-  int save_field_metadata(uchar *metadata_ptr)
-  {
-    *metadata_ptr= (uchar) decimals();
-    return 1;
-  }
 public:
   Field_datetimef(uchar *ptr_arg, uchar *null_ptr_arg,
                   uchar null_bit_arg, enum utype unireg_check_arg,
@@ -3596,7 +3557,6 @@ public:
                              unireg_check_arg, field_name_arg, dec_arg)
   {}
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
-  enum_field_types binlog_type() const { return MYSQL_TYPE_DATETIME2; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param);
@@ -3759,8 +3719,6 @@ public:
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
   void print_key_value(String *out, uint32 length);
   Binlog_type_info * binlog_type_info();
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3877,8 +3835,6 @@ public:
   uint length_size() { return length_bytes; }
   void print_key_value(String *out, uint32 length);
   Binlog_type_info * binlog_type_info();
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -3905,7 +3861,6 @@ private:
   double val_real(void);
   longlong val_int(void);
   uint size_of() const { return sizeof(*this); }
-  enum_field_types binlog_type() const { return MYSQL_TYPE_VARCHAR_COMPRESSED; }
   void sql_type(String &str) const
   {
     Field_varstring::sql_type(str);
@@ -4231,9 +4186,6 @@ public:
 
   friend void TABLE::remember_blob_values(String *blob_storage);
   friend void TABLE::restore_blob_values(String *blob_storage);
-
-private:
-  int save_field_metadata(uchar *first_byte);
 };
 
 
@@ -4257,7 +4209,6 @@ private:
   double val_real(void);
   longlong val_int(void);
   uint size_of() const { return sizeof(*this); }
-  enum_field_types binlog_type() const { return MYSQL_TYPE_BLOB_COMPRESSED; }
   void sql_type(String &str) const
   {
     Field_blob::sql_type(str);
@@ -4477,7 +4428,6 @@ public:
                           bool is_eq_func) const;
   Binlog_type_info * binlog_type_info();
 private:
-  int save_field_metadata(uchar *first_byte);
   uint is_equal(Create_field *new_field);
 };
 
@@ -4687,7 +4637,6 @@ public:
 
 private:
   virtual size_t do_last_null_byte() const;
-  int save_field_metadata(uchar *first_byte);
 };
 
 

@@ -607,7 +607,7 @@ Field_timef::rpl_conv_type_from(const Conv_source &source,
                                 const Relay_log_info *rli,
                                 const Conv_param &param)
 {
-  if (binlog_type() == source.real_field_type())
+  if (binlog_type_info()->m_type_code == source.real_field_type())
     return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
   /*
     See comment in Field_datetimef::rpl_conv_type_from()

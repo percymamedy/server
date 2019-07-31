@@ -3449,12 +3449,6 @@ void Field_new_decimal::sql_type(String &str) const
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_new_decimal::save_field_metadata(uchar *metadata_ptr)
-{
-  *metadata_ptr= precision;
-  *(metadata_ptr + 1)= decimals();
-  return 2;
-}
 
 Binlog_type_info * Field_new_decimal::binlog_type_info()
 {
@@ -4629,12 +4623,6 @@ bool Field_float::send_binary(Protocol *protocol)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_float::save_field_metadata(uchar *metadata_ptr)
-{
-  *metadata_ptr= pack_length();
-  return 1;
-}
-
 Binlog_type_info * Field_float::binlog_type_info()
 {
   Field::binlog_type_info();
@@ -4948,12 +4936,6 @@ void Field_double::sort_string(uchar *to,uint length __attribute__((unused)))
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_double::save_field_metadata(uchar *metadata_ptr)
-{
-  *metadata_ptr= pack_length();
-  return 1;
-}
-
 Binlog_type_info * Field_double::binlog_type_info()
 {
   Field::binlog_type_info();
@@ -7518,17 +7500,6 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_string::save_field_metadata(uchar *metadata_ptr)
-{
-  DBUG_ASSERT(field_length < 1024);
-  DBUG_ASSERT((real_type() & 0xF0) == 0xF0);
-  DBUG_PRINT("debug", ("field_length: %u, real_type: %u",
-                       field_length, real_type()));
-  *metadata_ptr= (real_type() ^ ((field_length & 0x300) >> 4));
-  *(metadata_ptr + 1)= field_length & 0xFF;
-  return 2;
-}
-
 Binlog_type_info * Field_string::binlog_type_info()
 {
   char a[3];
@@ -7627,12 +7598,6 @@ const uint Field_varstring::MAX_SIZE= UINT_MAX16;
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_varstring::save_field_metadata(uchar *metadata_ptr)
-{
-  DBUG_ASSERT(field_length <= 65535);
-  int2store((char*)metadata_ptr, field_length);
-  return 2;
-}
 Binlog_type_info * Field_varstring::binlog_type_info()
 {
   Field::binlog_type_info();
@@ -8639,13 +8604,6 @@ Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_blob::save_field_metadata(uchar *metadata_ptr)
-{
-  DBUG_ENTER("Field_blob::save_field_metadata");
-  *metadata_ptr= pack_length_no_ptr();
-  DBUG_PRINT("debug", ("metadata: %u (pack_length_no_ptr)", *metadata_ptr));
-  DBUG_RETURN(1);
-}
 Binlog_type_info * Field_blob::binlog_type_info()
 {
   Field::binlog_type_info();
@@ -9317,12 +9275,6 @@ longlong Field_enum::val_int(void)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_enum::save_field_metadata(uchar *metadata_ptr)
-{
-  *metadata_ptr= real_type();
-  *(metadata_ptr + 1)= pack_length();
-  return 2;
-}
 Binlog_type_info * Field_enum::binlog_type_info()
 {
   Field::binlog_type_info();
@@ -10064,20 +10016,6 @@ uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
 
    @returns number of bytes written to metadata_ptr
 */
-int Field_bit::save_field_metadata(uchar *metadata_ptr)
-{
-  DBUG_ENTER("Field_bit::save_field_metadata");
-  DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",
-                       bit_len, bytes_in_rec));
-  /*
-    Since this class and Field_bit_as_char have different ideas of
-    what should be stored here, we compute the values of the metadata
-    explicitly using the field_length.
-   */
-  metadata_ptr[0]= field_length % 8;
-  metadata_ptr[1]= field_length / 8;
-  DBUG_RETURN(2);
-}
 Binlog_type_info * Field_bit::binlog_type_info()
 {
   DBUG_PRINT("debug", ("bit_len: %d, bytes_in_rec: %d",

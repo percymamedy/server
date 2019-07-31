@@ -1,0 +1,46 @@
+--source include/master-slave.inc
+
+connection master;
+CREATE TABLE t1 (a INT UNSIGNED);
+
+sync_slave_with_master;
+
+connection slave;
+SET GLOBAL slave_type_conversions='';
+ALTER TABLE t1 MODIFY a INT;
+
+connection master;
+INSERT INTO t1 VALUES (0);
+INSERT INTO t1 VALUES (0xFFFFFFFF);
+
+sync_slave_with_master;
+SELECT * FROM t1;
+SET GLOBAL slave_type_conversions=DEFAULT;
+
+connection master;
+DROP TABLE t1;
+
+sync_slave_with_master;
+
+connection master;
+SET NAMES utf8;
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET latin1);
+
+sync_slave_with_master;
+SET NAMES utf8;
+SET GLOBAL slave_type_conversions='';
+ALTER TABLE t1 MODIFY a CHAR(10) CHARACTER SET latin2;
+
+connection master;
+INSERT INTO t1 VALUES (_latin1 0xC0);
+SELECT a FROM t1;
+
+sync_slave_with_master;
+SELECT * FROM t1;
+SET GLOBAL slave_type_conversions=DEFAULT;
+
+connection master;
+DROP TABLE t1;
+
+sync_slave_with_master;
+--source include/rpl_end.inc

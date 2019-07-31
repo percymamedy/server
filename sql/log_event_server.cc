@@ -6442,16 +6442,15 @@ bool Table_map_log_event::init_signedness_field()
   StringBuffer<128> buf;
   unsigned char flag= 0;
   unsigned char mask= 0x80;
+  Binlog_type_info *info;
 
   for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
   {
-    if (is_numeric_field(m_table->field[i]))
+    info= m_table->field[i]->binlog_type_info();
+    if (info->m_signess != Binlog_type_info::SIGNESS_NOT_RELEVANT)
     {
-      Field_num *field= dynamic_cast<Field_num *>(m_table->field[i]);
-
-      if (field->unsigned_flag)
+      if (info->m_signess == Binlog_type_info::UNSIGNED)
         flag|= mask;
-
       mask >>= 1;
 
       // 8 fields are tested, store the result and clear the flag.
