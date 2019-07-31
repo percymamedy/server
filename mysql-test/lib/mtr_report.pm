@@ -46,7 +46,7 @@ my %color_map = qw/pass green
                    skipped yellow
                    reset reset/;
 sub xterm_color {
-  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
+  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/ or -t STDIN) {
     syswrite STDOUT, color($color_map{$_[0]});
   }
 }
