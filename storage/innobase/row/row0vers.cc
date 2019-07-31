@@ -449,6 +449,7 @@ row_vers_build_clust_v_col(
 	TABLE*		maria_table= 0;
 	byte*		record= 0;
 
+	DBUG_ENTER("row_vers_build_clust_v_col");
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
 
@@ -457,6 +458,7 @@ row_vers_build_clust_v_col(
 		maria_table = vcol_info->table();
 	}
 
+	DBUG_PRINT("asan", ("allocate_row. table: %p", maria_table));
 	innobase_allocate_row_for_vcol(thd, index,
 				       &local_heap,
 				       &maria_table,
@@ -468,7 +470,8 @@ row_vers_build_clust_v_col(
 		vcol_info->set_table(maria_table);
 		goto func_exit;
 	}
-	DEBUG_SYNC(current_thd, "ib_clust_v_col_row_allocated");
+	DEBUG_SYNC(current_thd, "ib_purge_start_computing");
+	DBUG_PRINT("asan", ("Start computing. def_rec: %p", index->table->vc_templ->default_rec));
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t* ind_field = dict_index_get_nth_field(
@@ -486,6 +489,7 @@ row_vers_build_clust_v_col(
 				NULL, NULL);
 		}
 	}
+	DEBUG_SYNC(current_thd, "ib_purge_computing_done");
 
 func_exit:
 	if (local_heap) {
@@ -493,6 +497,7 @@ func_exit:
 			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(local_heap);
 	}
+	DBUG_VOID_RETURN;
 }
 
 /** Build latest virtual column data from undo log

@@ -2724,6 +2724,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	slot = srv_reserve_slot(SRV_PURGE);
 
 	ulint	rseg_history_len = trx_sys.history_size();
+	DBUG_ENTER("srv_purge_coordinator_thread");
 
 	do {
 		/* If there are no records to purge or the last

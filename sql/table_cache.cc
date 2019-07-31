@@ -808,7 +808,8 @@ TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
   uint key_length= get_table_def_key(tl, &key);
   my_hash_value_type hash_value= tl->mdl_request.key.tc_hash_value();
   bool was_unused;
-  DBUG_ENTER("tdc_acquire_share");
+  uint new_ref_count= -1;
+  DBUG_ENTER(strcmp(tl->table_name.str, "t1") == 0 ? "tdc_acquire_share" : "noop");
 
   if (fix_thd_pins(thd))
     DBUG_RETURN(0);
@@ -849,7 +850,7 @@ retry:
     mysql_mutex_lock(&element->LOCK_table_share);
     element->share= share;
     share->tdc= element;
-    element->ref_count++;
+    new_ref_count= ++element->ref_count;
     element->version= tdc_refresh_version();
     element->flushed= false;
     mysql_mutex_unlock(&element->LOCK_table_share);
@@ -913,7 +914,7 @@ retry:
   }
 
   was_unused= !element->ref_count;
-  element->ref_count++;
+  new_ref_count= ++element->ref_count;
   mysql_mutex_unlock(&element->LOCK_table_share);
   if (was_unused)
   {
@@ -933,8 +934,9 @@ retry:
   }
 
 end:
-  DBUG_PRINT("exit", ("share: %p  ref_count: %u",
-                      share, share->tdc->ref_count));
+  DBUG_PRINT("exit", ("share: %p  name: %p  ref_count: %u  def_rec: %p",
+                      share, tl->table_name.str, new_ref_count,
+                      share->default_values));
   if (flags & GTS_NOLOCK)
   {
     tdc_release_share(share);
@@ -961,13 +963,16 @@ err:
 
 void tdc_release_share(TABLE_SHARE *share)
 {
-  DBUG_ENTER("tdc_release_share");
+  DBUG_ENTER(strcmp(share->table_name.str, "t1") == 0 ? "tdc_release_share" : "noop");
 
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
-  DBUG_PRINT("enter",
-             ("share: %p  table: %s.%s  ref_count: %u  version: %lld",
-              share, share->db.str, share->table_name.str,
-              share->tdc->ref_count, share->tdc->version));
+  if (strcmp(share->table_name.str, "t1") == 0)
+  {
+    DBUG_PRINT("enter",
+               ("share: %p  table: %s.%s  ref_count: %u  version: %lld  def_rec: %p",
+                share, share->db.str, share->table_name.str,
+                share->tdc->ref_count, share->tdc->version, share->default_values));
+  }
   DBUG_ASSERT(share->tdc->ref_count);
 
   if (share->tdc->ref_count > 1)

@@ -428,7 +428,7 @@ void TABLE_SHARE::destroy()
 {
   uint idx;
   KEY *info_it;
-  DBUG_ENTER("TABLE_SHARE::destroy");
+  DBUG_ENTER(strcmp(table_name.str, "t1") == 0 ? "TABLE_SHARE::destroy": "noop");
   DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
   if (ha_share)

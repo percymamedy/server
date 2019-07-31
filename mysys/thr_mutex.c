@@ -235,8 +235,8 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
                     uint line)
 {
   int error;
-  DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
-                       (ulong) mp));
+//  DBUG_PRINT("mutex", ("%s (0x%lx) locking", mp->name ? mp->name : "Null",
+//                       (ulong) mp));
   if (!mp->file)
   {
     fprintf(stderr,
@@ -397,7 +397,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
     }
   }
 
-  DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
+  //DBUG_PRINT("mutex", ("%s (0x%lx) locked", mp->name, (ulong) mp));
   return error;
 }
 
@@ -405,7 +405,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
 int safe_mutex_unlock(safe_mutex_t *mp,const char *file, uint line)
 {
   int error;
-  DBUG_PRINT("mutex", ("%s (0x%lx) unlocking", mp->name, (ulong) mp));
+  //DBUG_PRINT("mutex", ("%s (0x%lx) unlocking", mp->name, (ulong) mp));
   pthread_mutex_lock(&mp->global);
   if (mp->count == 0)
   {
