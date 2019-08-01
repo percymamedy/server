@@ -4777,7 +4777,11 @@ void substitute_base_to_nest_items(JOIN *join)
     if ((new_item= item->transform(join->thd,
                                    &Item::replace_with_nest_items,
                                   (uchar *) &arg)) != item)
-      it.replace(new_item);
+      {
+        new_item->name= item->name;
+        it.replace(new_item);
+      }
+    new_item->update_used_tables();
   }
   JOIN_TAB *end_tab= sort_nest_info->nest_tab;
   uint i, j;
@@ -9685,6 +9689,7 @@ best_extension_by_limited_search(JOIN      *join,
                                              previous_tables | real_table_bit,
                                              nest_created, cardinality))
           DBUG_RETURN(TRUE);
+        trace_rest.end();
 
         if (!nest_created && !join->emb_sjm_nest && join->order && nest_allow &&
             !join->need_order_nest() &&
@@ -9697,7 +9702,9 @@ best_extension_by_limited_search(JOIN      *join,
             cost= postjoin_oper_cost(join, partial_join_cardinality,
                                      AVG_REC_LEN, idx);
             current_read_time= COST_ADD(current_read_time, cost);
+            trace_one_table.add("cost_of_sorting", cost);
           }
+          Json_writer_array trace_rest(thd, "rest_of_plan");
           if (best_extension_by_limited_search(join,
                                                remaining_tables & ~real_table_bit,
                                                idx + 1,
@@ -9710,6 +9717,7 @@ best_extension_by_limited_search(JOIN      *join,
                                                TRUE, cardinality))
             DBUG_RETURN(TRUE);
           join->positions[idx].sort_nest_operation_here= FALSE;
+          trace_rest.end();
         }
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
@@ -9730,6 +9738,7 @@ best_extension_by_limited_search(JOIN      *join,
              Hence it may be wrong.
           */
           double cost= postjoin_oper_cost(join, partial_join_cardinality, AVG_REC_LEN, idx);
+          trace_one_table.add("cost_of_sorting", cost);
           current_read_time= COST_ADD(current_read_time, cost);
         }
         if (!nest_created)
@@ -29209,7 +29218,7 @@ double postjoin_oper_cost(JOIN *join, double join_record_count, uint rec_len, ui
     For only one table in the order_nest, we don't need a fill the temp table, we can
     just read the data into the filesort buffer and read the sorted data from the buffers.
   */
-  if (idx == join->const_tables)
+  if (idx != join->const_tables)
     cost=  get_tmp_table_write_cost(thd, join_record_count,rec_len) *
            join_record_count;   // cost to fill tmp table
 
@@ -29256,7 +29265,7 @@ void find_keys_that_can_achieve_ordering(JOIN *join, JOIN_TAB *tab)
 bool needs_filesort(JOIN_TAB *tab, uint idx, int index_used)
 {
   JOIN *join= tab->join;
-  if (idx == join->const_tables)
+  if (idx && idx == join->const_tables)
     return TRUE;
 
   TABLE *table= tab->table;
