@@ -44,12 +44,10 @@
     </Condition>
 
     <CustomAction Id="symlinks" ExeCommand="cmd /c &quot;PostInstall.bat&quot;" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="check"/>
-    <CustomAction Id="CreateSymlinks" BinaryKey="wixca.dll" DllEntry="CreateSymlinks" Execute="commit" />
 
     <InstallExecuteSequence>
       <RemoveExistingProducts After="InstallFinalize"/>
-      <Custom Action="symlinks" After="CreateSymlinks" >NOT Installed</Custom>
-      <Custom Action="CreateSymlinks" After="InstallFiles">Not Installed</Custom>
+      <Custom Action="symlinks" After="InstallFiles" >NOT Installed</Custom>
     </InstallExecuteSequence>
 
  

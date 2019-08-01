@@ -661,7 +661,14 @@
    </Feature>
    <?endif?>
 
-    <!--  Custom action, call mysql_install_db  -->
+    <!-- Custom action, create symlinks -->
+    <CustomAction Id="CreateSymlinks" BinaryKey="wixca.dll" DllEntry="CreateSymlinks" Execute="deferred" Impersonate="no" />
+    
+    <InstallExecuteSequence>
+      <Custom Action="CreateSymlinks" Before="InstallFinalize">NOT Installed</Custom>
+    </InstallExecuteSequence>
+
+    <!-- Custom action, call mysql_install_db -->
     <SetProperty  Sequence='execute'  Before='CreateDatabaseCommand' Id="SKIPNETWORKING"  Value="--skip-networking" >SKIPNETWORKING</SetProperty>
     <SetProperty Sequence='execute'  Before='CreateDatabaseCommand'  Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
     <SetProperty Sequence='execute'  Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
