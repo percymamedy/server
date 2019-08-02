@@ -1118,6 +1118,8 @@ bool close_temporary_tables(THD *thd)
   /* Assume thd->variables.option_bits has OPTION_QUOTE_SHOW_CREATE */
   bool was_quote_show= TRUE;
   bool error= 0;
+  fprintf(stderr,"-------In close_temporary_tables\n");
+  fflush(stderr);
 
   if (!thd->temporary_tables)
     DBUG_RETURN(FALSE);
@@ -1196,6 +1198,9 @@ bool close_temporary_tables(THD *thd)
     thd->variables.option_bits |= OPTION_QUOTE_SHOW_CREATE;
   }
 
+  fprintf(stderr,"-------In close_temporary_tables\n");
+  fprintf(stderr,"------THREAD ID:%lu\n", thd->thread_id);
+  fflush(stderr);
   /* scan sorted tmps to generate sequence of DROP */
   for (table= thd->temporary_tables; table; table= next)
   {
@@ -1217,6 +1222,9 @@ bool close_temporary_tables(THD *thd)
          within the sublist of common pseudo_thread_id to create single
          DROP query 
       */
+      fprintf(stderr,"---------psuedo_thread_id:%lu\n", thd->variables.pseudo_thread_id);
+      fprintf(stderr,"---------tmpkeyval(thd, table):%u\n", tmpkeyval(thd, table));
+      fflush(stderr);
       for (at_least_one_create_logged= false;
            table && is_user_table(table) &&
              tmpkeyval(thd, table) == thd->variables.pseudo_thread_id &&
@@ -1234,6 +1242,8 @@ bool close_temporary_tables(THD *thd)
           append_identifier(thd, &s_query, table->s->table_name.str,
                             strlen(table->s->table_name.str));
           s_query.append(',');
+          fprintf(stderr,"---------DROP QUERY PREPARE :%s THD_ID:%lu\n", s_query.ptr(), thd->thread_id);
+          fflush(stderr);
         }
         next= table->next;
         mysql_lock_remove(thd, thd->lock, table);
@@ -1245,6 +1255,8 @@ bool close_temporary_tables(THD *thd)
         CHARSET_INFO *cs_save= thd->variables.character_set_client;
         thd->variables.character_set_client= system_charset_info;
         thd->thread_specific_used= TRUE;
+        fprintf(stderr,"---------DROP QUERY LOG :%s THD_ID:%lu\n", s_query.ptr(), thd->thread_id);
+        fflush(stderr);
         Query_log_event qinfo(thd, s_query.ptr(),
                               s_query.length() - 1 /* to remove trailing ',' */,
                               FALSE, TRUE, FALSE, 0);

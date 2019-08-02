@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
-
+if (`SELECT @@BINLOG_FORMAT = 'ROW'`) {
+--let $skip=1
+}
 --disable_warnings
 DROP DATABASE IF EXISTS `drop-temp+table-test`;
 --enable_warnings
@@ -148,22 +150,37 @@ DROP TABLE IF EXISTS t1;
 RESET MASTER;
 
 --echo # Test case for DROP query.
-
+--echo ____________________________________________________________________
+--enable_connect_log
 --connection default
+if ($skip != 1) {
+select connection_id();
+}
 CREATE TABLE t1 (a INT) ENGINE=INNODB;
 
 --connection con1
+if ($skip != 1) {
+select connection_id();
+}
 CREATE TEMPORARY TABLE t1 (b BLOB) ENGINE=INNODB;
 
 --connection default
+if ($skip != 1) {
+select connection_id();
+}
 DROP TABLE t1;
 
 --connection con1
+if ($skip != 1) {
+select connection_id();
+}
 DROP TABLE t1;
 
 --connection default
 --exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/bug28642318.sql
-
+if ($skip != 1) {
+--cat_file $MYSQLTEST_VARDIR/tmp/bug28642318.sql
+}
 --echo # DROP table query fails with unknown table error without patch.
 --exec $MYSQL < $MYSQLTEST_VARDIR/tmp/bug28642318.sql
 
@@ -173,4 +190,5 @@ SET @@session.binlog_format= @save_binlog_format;
 RESET MASTER;
 
 --disconnect con1
+--disable_connect_log
 --enable_warnings
